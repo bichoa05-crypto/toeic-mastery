@@ -8,6 +8,17 @@ export const PRO_PLANS = {
 
 export type ProPlanKey = keyof typeof PRO_PLANS;
 
+/** Real, server-enforced welcome discount for brand-new Free accounts (see
+ * src/lib/services/new-member-offer.ts) — not a cosmetic banner. Rounded to
+ * the nearest 1,000đ to land on the same "ends in 9,000" style as PRO_PLANS. */
+export const NEW_MEMBER_OFFER_PERCENT = 25;
+export const NEW_MEMBER_OFFER_WINDOW_DAYS = 3;
+
+export function discountedPriceVnd(planKey: ProPlanKey): number {
+  const plan = PRO_PLANS[planKey];
+  return Math.round((plan.amountVnd * (100 - NEW_MEMBER_OFFER_PERCENT)) / 100 / 1000) * 1000;
+}
+
 /** % cheaper than paying the 1-month price every 30 days for the same
  * duration — e.g. 3 months at 399k vs 3×199k=597k is a 33% saving. */
 export function planSavingsPercent(planKey: ProPlanKey): number {

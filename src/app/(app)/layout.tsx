@@ -1,10 +1,14 @@
 import { requireUser } from "@/lib/auth";
 import { getVocabularyReminder } from "@/lib/data/vocabulary";
+import { getNewMemberOfferState } from "@/lib/services/new-member-offer";
 import { AppShell } from "@/components/layout/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireUser();
-  const vocabularyReminder = await getVocabularyReminder(profile.id);
+  const [vocabularyReminder, newMemberOffer] = await Promise.all([
+    getVocabularyReminder(profile.id),
+    getNewMemberOfferState(profile),
+  ]);
 
   return (
     <AppShell
@@ -20,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         proExpiresAt: profile.proExpiresAt,
       }}
       vocabularyReminder={vocabularyReminder}
+      newMemberOfferDeadline={newMemberOffer.deadline}
     >
       {children}
     </AppShell>

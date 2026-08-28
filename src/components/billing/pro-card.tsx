@@ -7,7 +7,17 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { declareBankTransferAction } from "@/lib/actions/billing";
 import { ActivationCodeForm } from "@/components/billing/activation-code-form";
-import { PRO_PLANS, BANK_TRANSFER_INFO, buildVietQrImageUrl, planSavingsPercent, planPricePerDay, type ProPlanKey } from "@/lib/constants/billing";
+import {
+  PRO_PLANS,
+  BANK_TRANSFER_INFO,
+  buildVietQrImageUrl,
+  planSavingsPercent,
+  planPricePerDay,
+  discountedPriceVnd,
+  NEW_MEMBER_OFFER_PERCENT,
+  type ProPlanKey,
+} from "@/lib/constants/billing";
+import type { NewMemberOfferState } from "@/lib/services/new-member-offer"; // type-only: server-only module, erased at build time
 
 const PRO_BENEFITS = [
   "Không giới hạn Mock Test, Tra từ bôi đen & Chữa câu tức thì",
@@ -39,21 +49,22 @@ function CopyableRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ProCard() {
+export function ProCard({ offer }: { offer: NewMemberOfferState }) {
   const [planKey, setPlanKey] = React.useState<ProPlanKey>("THREE_MONTHS");
   const [pending, startTransition] = React.useTransition();
-  const [order, setOrder] = React.useState<{ orderId: string; planKey: ProPlanKey } | null>(null);
+  const [order, setOrder] = React.useState<{ orderId: string; planKey: ProPlanKey; amount: number } | null>(null);
 
   const plan = PRO_PLANS[planKey];
+  const displayPrice = offer.eligible ? discountedPriceVnd(planKey) : plan.amountVnd;
 
   function handleUpgrade() {
     startTransition(async () => {
       const result = await declareBankTransferAction(planKey);
-      if (result.error || !result.orderId) {
+      if (result.error || !result.orderId || result.amount === undefined) {
         toast.error(result.error ?? "Không tạo được yêu cầu, vui lòng thử lại");
         return;
       }
-      setOrder({ orderId: result.orderId, planKey });
+      setOrder({ orderId: result.orderId, planKey, amount: result.amount });
     });
   }
 
@@ -69,12 +80,12 @@ export function ProCard() {
       {order ? (
         <div className="mt-5 flex flex-col items-center gap-4 text-center">
           <p className="text-sm font-medium">
-            Quét mã để chuyển khoản <span className="text-primary">{PRO_PLANS[order.planKey].amountVnd.toLocaleString("vi-VN")}₫</span> (
+            Quét mã để chuyển khoản <span className="text-primary">{order.amount.toLocaleString("vi-VN")}₫</span> (
             {PRO_PLANS[order.planKey].label})
           </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={buildVietQrImageUrl(PRO_PLANS[order.planKey].amountVnd, order.orderId)}
+            src={buildVietQrImageUrl(order.amount, order.orderId)}
             alt="VietQR chuyển khoản"
             className="h-56 w-56 rounded-xl border border-border"
           />
@@ -120,10 +131,21 @@ export function ProCard() {
           </div>
 
           <div className="mt-5 text-center">
-            <p className="text-3xl font-bold">{plan.amountVnd.toLocaleString("vi-VN")}đ</p>
+            {offer.eligible ? (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-base text-muted-foreground line-through">{plan.amountVnd.toLocaleString("vi-VN")}đ</span>
+                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                  -{NEW_MEMBER_OFFER_PERCENT}%
+                </span>
+              </div>
+            ) : null}
+            <p className="text-3xl font-bold">{displayPrice.toLocaleString("vi-VN")}đ</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Tiết kiệm {planSavingsPercent(planKey)}% • ~{planPricePerDay(planKey).toLocaleString("vi-VN")}đ/ngày
             </p>
+            {offer.eligible && (
+              <p className="mt-1 text-xs font-medium text-primary">🎁 Ưu đãi chào mừng thành viên mới — chỉ áp dụng lần đầu nâng cấp</p>
+            )}
           </div>
 
           <ul className="mt-5 flex flex-col gap-2 text-sm">

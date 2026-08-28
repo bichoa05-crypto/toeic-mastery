@@ -7,12 +7,17 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { buildPaymentUrl } from "@/lib/services/vnpay";
 import { grantProDays } from "@/lib/services/pro-grant";
-import { PRO_PLANS, type ProPlanKey } from "@/lib/constants/billing";
+import { getNewMemberOfferState } from "@/lib/services/new-member-offer";
+import { PRO_PLANS, discountedPriceVnd, type ProPlanKey } from "@/lib/constants/billing";
 
 export interface ActionResult {
   error?: string;
   redirectUrl?: string;
   orderId?: string;
+  /** The amount actually recorded on the Payment row — always read this for
+   * display instead of re-deriving from PRO_PLANS, since it may be the
+   * discounted new-member price. */
+  amount?: number;
 }
 
 /** Redeems an admin-generated single-use code (see admin-payments.ts's
@@ -51,20 +56,26 @@ export async function declareBankTransferAction(planKey: ProPlanKey): Promise<Ac
   const plan = PRO_PLANS[planKey];
   if (!plan) return { error: "Gói không hợp lệ" };
 
+  // Recomputed server-side, never trusted from the client — this is what
+  // actually gets charged, so eligibility must be re-checked at the moment
+  // of declaring, not assumed from whatever the pricing page rendered.
+  const offer = await getNewMemberOfferState(profile);
+  const amount = offer.eligible ? discountedPriceVnd(planKey) : plan.amountVnd;
+
   const orderId = `TOEIC${Date.now()}${randomUUID().slice(0, 6)}`.toUpperCase();
 
   await db.payment.create({
     data: {
       userId: profile.id,
       orderId,
-      amount: plan.amountVnd,
+      amount,
       planDurationDays: plan.durationDays,
       status: "PENDING",
     },
   });
 
   revalidatePath("/pricing");
-  return { orderId };
+  return { orderId, amount };
 }
 
 /** Dormant until a real VNPay merchant account exists — kept working and

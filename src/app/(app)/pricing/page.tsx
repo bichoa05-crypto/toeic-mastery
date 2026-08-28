@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Check, Crown } from "lucide-react";
 import { requireUser, isPro } from "@/lib/auth";
+import { getNewMemberOfferState } from "@/lib/services/new-member-offer";
 import { Badge } from "@/components/ui/badge";
 import { ProCard } from "@/components/billing/pro-card";
 
@@ -18,6 +19,7 @@ const FREE_BENEFITS = [
 export default async function PricingPage() {
   const profile = await requireUser();
   const pro = isPro(profile);
+  const offer = await getNewMemberOfferState(profile);
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,7 +56,7 @@ export default async function PricingPage() {
           )}
         </div>
 
-        <ProCard />
+        <ProCard offer={offer} />
       </div>
     </div>
   );
