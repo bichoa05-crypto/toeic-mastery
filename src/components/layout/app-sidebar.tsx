@@ -15,6 +15,8 @@ export interface SidebarProfile {
   streakCount: number;
   targetScore: number | null;
   currentScore: number | null;
+  plan: "FREE" | "PRO";
+  proExpiresAt: Date | null;
 }
 
 function isActive(pathname: string, href: string) {

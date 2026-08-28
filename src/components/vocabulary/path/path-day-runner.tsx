@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpenCheck, Grid3x3, ListChecks, Loader2, PartyPopper, Star } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, Grid3x3, ListChecks, Loader2, PartyPopper, RotateCcw, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfettiBurst } from "@/components/shared/confetti-burst";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import type { StudyItem } from "@/lib/services/study-game";
 import { FlashcardBrowse } from "@/components/study-game/flashcard-browse";
 import { QuizMode } from "@/components/study-game/quiz-mode";
 import { MatchingGame } from "@/components/study-game/matching-game";
+import { VocabularyReviewOverview } from "@/components/vocabulary/vocabulary-review-overview";
 import { logStudySessionAction, practiceVocabularyWordAction } from "@/lib/actions/vocabulary";
 import { completePathStepAction } from "@/lib/actions/vocabulary-path";
 
@@ -28,6 +29,7 @@ export function PathDayRunner({
   initialStepsCompleted,
   initialStars,
   items,
+  starredTerms,
 }: {
   dayId: string;
   dayNumber: number;
@@ -36,6 +38,7 @@ export function PathDayRunner({
   initialStepsCompleted: number;
   initialStars: number;
   items: StudyItem[];
+  starredTerms: string[];
 }) {
   const router = useRouter();
   const [activeStep, setActiveStep] = React.useState<1 | 2 | 3 | null>(
@@ -44,11 +47,41 @@ export function PathDayRunner({
   const [stepsCompleted, setStepsCompleted] = React.useState(initialStepsCompleted);
   const [stars, setStars] = React.useState(initialStars);
   const [pending, setPending] = React.useState(false);
+  const [reviewItems, setReviewItems] = React.useState<StudyItem[] | null>(null);
+  const [showOverview, setShowOverview] = React.useState(false);
+  // Mirrors the star/unstar side effect FlashcardBrowse/QuizMode trigger
+  // server-side, so the overview's counts update immediately instead of
+  // waiting on a slow remote round-trip + router.refresh() to catch up.
+  const [localStarOverrides, setLocalStarOverrides] = React.useState<Record<string, boolean>>({});
   const startedAtRef = React.useRef<number | null>(null);
 
-  const handleItemResult = React.useCallback((itemId: string, rating: Parameters<typeof practiceVocabularyWordAction>[1]) => {
-    void practiceVocabularyWordAction(itemId, rating);
-  }, []);
+  const effectiveStarredTerms = React.useMemo(() => {
+    const set = new Set(starredTerms.map((t) => t.toLowerCase()));
+    for (const [term, starred] of Object.entries(localStarOverrides)) {
+      if (starred) set.add(term);
+      else set.delete(term);
+    }
+    return [...set];
+  }, [starredTerms, localStarOverrides]);
+
+  const wrongItems = items.filter((i) => effectiveStarredTerms.includes(i.term.toLowerCase()));
+
+  // async + awaited-by-QuizMode (not fire-and-forget) so a quiz's burst of
+  // per-word writes at completion time survives even if the user navigates
+  // away moments after seeing the results screen.
+  const handleItemResult = React.useCallback(
+    async (itemId: string, rating: Parameters<typeof practiceVocabularyWordAction>[1]) => {
+      await practiceVocabularyWordAction(itemId, rating);
+      const term = items.find((i) => i.id === itemId)?.term.toLowerCase();
+      if (!term) return;
+      // Step 3 (quiz) stars on anything but a perfect first try; every other
+      // flow (self-rated flashcards) stars only on "Học lại" — same rule
+      // FlashcardBrowse/QuizMode apply server-side (see their own files).
+      const shouldStar = activeStep === 3 ? rating !== "EASY" : rating === "AGAIN";
+      setLocalStarOverrides((prev) => ({ ...prev, [term]: shouldStar }));
+    },
+    [items, activeStep]
+  );
 
   function beginStep(step: 1 | 2 | 3) {
     startedAtRef.current = Date.now();
@@ -72,6 +105,12 @@ export function PathDayRunner({
 
   const dayComplete = stepsCompleted >= 3;
 
+  function finishReview() {
+    setReviewItems(null);
+    setShowOverview(true);
+    router.refresh();
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -86,7 +125,18 @@ export function PathDayRunner({
         </p>
       </div>
 
-      {activeStep === null && dayComplete ? (
+      {reviewItems ? (
+        <FlashcardBrowse items={reviewItems} onFinish={finishReview} onItemResult={handleItemResult} />
+      ) : showOverview ? (
+        <VocabularyReviewOverview
+          key={effectiveStarredTerms.join(",")}
+          title={`Từ vựng Ngày ${dayNumber}`}
+          items={items}
+          starredTerms={effectiveStarredTerms}
+          onStartReview={(list) => setReviewItems(list)}
+          onBack={() => setShowOverview(false)}
+        />
+      ) : activeStep === null && dayComplete ? (
         <div className="flex flex-col items-center gap-4 rounded-3xl border border-success/30 bg-success/10 p-8 text-center">
           <ConfettiBurst />
           <span className="flex size-16 items-center justify-center rounded-full bg-success/20 text-success">
@@ -100,7 +150,17 @@ export function PathDayRunner({
               ))}
             </div>
           </div>
-          <div className="flex gap-2">
+
+          {wrongItems.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Bạn có <strong className="text-foreground">{wrongItems.length}</strong>/{items.length} từ chưa nhớ chắc — hãy ôn tập lại.
+            </p>
+          )}
+
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="outline" onClick={() => setShowOverview(true)}>
+              <RotateCcw className="size-4" /> Ôn tập lại
+            </Button>
             <Button asChild variant="outline">
               <Link href="/vocabulary">Về lộ trình</Link>
             </Button>

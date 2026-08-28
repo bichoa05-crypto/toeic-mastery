@@ -20,11 +20,14 @@ export interface FlashCardWord {
   audioUrlUk: string | null;
 }
 
-const RATING_BUTTONS: { rating: ReviewRating; label: string; className: string }[] = [
-  { rating: "AGAIN", label: "Quên", className: "bg-destructive text-destructive-foreground hover:bg-destructive/90" },
+/** Shared across every place a word gets self-rated (dedicated review page,
+ * flashcard-browse first-time learning, Quick Study) — same 4 buckets, same
+ * labels/colors, so the scheduling model reads as one consistent system. */
+export const RATING_BUTTONS: { rating: ReviewRating; label: string; className: string }[] = [
+  { rating: "AGAIN", label: "Học lại", className: "bg-destructive text-destructive-foreground hover:bg-destructive/90" },
   { rating: "HARD", label: "Khó", className: "bg-warning text-warning-foreground hover:bg-warning/90" },
-  { rating: "GOOD", label: "Tốt", className: "bg-info text-info-foreground hover:bg-info/90" },
-  { rating: "EASY", label: "Dễ", className: "bg-success text-success-foreground hover:bg-success/90" },
+  { rating: "GOOD", label: "Dễ", className: "bg-info text-info-foreground hover:bg-info/90" },
+  { rating: "EASY", label: "Đã thuộc", className: "bg-success text-success-foreground hover:bg-success/90" },
 ];
 
 export function FlashCard({ word, onRate }: { word: FlashCardWord; onRate: (rating: ReviewRating) => void }) {

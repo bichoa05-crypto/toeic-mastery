@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Star, ExternalLink, Loader2 } from "lucide-react";
+import { Star, ExternalLink, Loader2, Crown } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { WordAudioButton } from "@/components/dictionary/word-audio-button";
 import { useDictionaryLookup } from "@/hooks/use-dictionary-lookup";
 import { toggleSaveWordAction } from "@/lib/actions/dictionary";
+import { FREE_DICTIONARY_LOOKUPS_PER_DAY } from "@/lib/constants/limits";
 import { cn } from "@/lib/utils";
 
 export function DictionaryPopupContent({
@@ -41,6 +42,19 @@ export function DictionaryPopupContent({
     return (
       <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" /> Đang tra &quot;{word}&quot;...
+      </div>
+    );
+  }
+
+  if (error instanceof Error && error.message === "LIMIT_REACHED") {
+    return (
+      <div className="flex flex-col items-center gap-2 p-4 text-center">
+        <Crown className="size-6 text-primary" />
+        <p className="text-sm font-medium">Nâng cấp tài khoản để tiếp tục tra cứu</p>
+        <p className="text-xs text-muted-foreground">Bạn đã dùng hết {FREE_DICTIONARY_LOOKUPS_PER_DAY} lượt tra miễn phí hôm nay.</p>
+        <Button asChild size="sm" onClick={onNavigate}>
+          <Link href="/pricing">Nâng cấp Pro</Link>
+        </Button>
       </div>
     );
   }

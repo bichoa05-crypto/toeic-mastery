@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardList,
+  CreditCard,
   LayoutDashboard,
   Layers,
   Users,
@@ -15,6 +16,7 @@ const ADMIN_NAV = [
   { label: "Câu hỏi", href: "/admin/questions", icon: BookOpen },
   { label: "Từ vựng", href: "/admin/vocabulary", icon: Layers },
   { label: "Người dùng", href: "/admin/users", icon: Users },
+  { label: "Thanh toán", href: "/admin/payments", icon: CreditCard },
   { label: "Thống kê", href: "/admin/analytics", icon: BarChart3 },
 ];
 

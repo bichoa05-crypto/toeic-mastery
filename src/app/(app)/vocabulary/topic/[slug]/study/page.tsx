@@ -11,8 +11,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function VocabularyTopicStudyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  await requireUser();
-  const { topicName, items } = await getTopicStudyItems(slug);
+  const profile = await requireUser();
+  const { topicName, items, starredTerms } = await getTopicStudyItems(slug, profile.id);
 
   return (
     <StudyGameLauncher
@@ -21,6 +21,7 @@ export default async function VocabularyTopicStudyPage({ params }: { params: Pro
       backHref={`/vocabulary/topic/${slug}`}
       backLabel="Quay lại danh sách từ"
       trackable
+      initialStarredTerms={starredTerms}
     />
   );
 }

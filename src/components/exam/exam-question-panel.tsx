@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Eye, Flag, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Crown, Eye, Flag, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AudioPlayer } from "@/components/exam/audio-player";
@@ -10,6 +11,7 @@ import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
 import { PassageViewer } from "@/components/exam/passage-viewer";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { PART_META } from "@/lib/constants/toeic";
+import { FREE_ANSWER_REVEALS_PER_DAY } from "@/lib/constants/limits";
 import type { ExamData } from "@/lib/data/exam";
 import type { ExamQuestion } from "@/store/exam-store";
 
@@ -129,7 +131,18 @@ export function ExamQuestionPanel({
 
       {mode === "PRACTICE" && (
         <div className="border-t border-border pt-4">
-          {!reveal ? (
+          {revealError === "LIMIT_REACHED" ? (
+            <div className="flex flex-col items-center gap-2 rounded-xl bg-accent/50 p-4 text-center">
+              <Crown className="size-5 text-primary" />
+              <p className="text-sm font-medium">Nâng cấp tài khoản để tiếp tục xem đáp án</p>
+              <p className="text-xs text-muted-foreground">
+                Bạn đã dùng hết {FREE_ANSWER_REVEALS_PER_DAY} lượt chữa tức thì miễn phí hôm nay.
+              </p>
+              <Button asChild size="sm">
+                <Link href="/pricing">Nâng cấp Pro</Link>
+              </Button>
+            </div>
+          ) : !reveal ? (
             <Button type="button" variant="outline" size="sm" onClick={handleReveal} disabled={revealLoading}>
               {revealLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
               Xem đáp án & giải thích
@@ -154,7 +167,7 @@ export function ExamQuestionPanel({
               )}
             </div>
           )}
-          {revealError && <p className="mt-2 text-xs text-destructive">{revealError}</p>}
+          {revealError && revealError !== "LIMIT_REACHED" && <p className="mt-2 text-xs text-destructive">{revealError}</p>}
         </div>
       )}
     </div>

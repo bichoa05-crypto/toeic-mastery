@@ -72,12 +72,16 @@ export async function toggleSaveWordAction(word: string): Promise<ActionResult> 
  * learner can save proper nouns, TOEIC-specific jargon, or phrases the
  * dictionary provider doesn't know. The custom meaningVi takes precedence
  * over the DictionaryEntry cache when both exist (see getSavedWordStudyItems). */
-export async function bulkAddCustomWordsAction(rows: { term: string; definition: string }[]): Promise<ActionResult & { count?: number }> {
+export async function bulkAddCustomWordsAction(
+  rows: { term: string; definition: string }[],
+  category?: string | null
+): Promise<ActionResult & { count?: number }> {
   const profile = await getCurrentProfile();
   if (!profile) return { error: "Vui lòng đăng nhập" };
 
   const clean = rows.map((r) => ({ term: r.term.trim(), definition: r.definition.trim() })).filter((r) => r.term && r.definition);
   if (clean.length === 0) return { error: "Không có từ hợp lệ để thêm" };
+  const normalizedCategory = category?.trim() || null;
 
   // Run outside a $transaction — each word is an independent upsert, and a
   // large pasted list (Quizlet sets often run 50-100+ terms) can otherwise
@@ -89,8 +93,8 @@ export async function bulkAddCustomWordsAction(rows: { term: string; definition:
       const word = r.term.toLowerCase();
       return db.savedWord.upsert({
         where: { userId_word: { userId: profile.id, word } },
-        create: { userId: profile.id, word, meaningVi: r.definition },
-        update: { meaningVi: r.definition },
+        create: { userId: profile.id, word, meaningVi: r.definition, category: normalizedCategory },
+        update: { meaningVi: r.definition, ...(normalizedCategory ? { category: normalizedCategory } : {}) },
       });
     })
   );
@@ -104,6 +108,18 @@ export async function bulkAddCustomWordsAction(rows: { term: string; definition:
   revalidatePath("/bookmarks");
   revalidatePath("/dashboard");
   return { count: clean.length };
+}
+
+export async function setSavedWordCategoryAction(word: string, category: string | null): Promise<ActionResult> {
+  const profile = await getCurrentProfile();
+  if (!profile) return { error: "Vui lòng đăng nhập" };
+
+  await db.savedWord.update({
+    where: { userId_word: { userId: profile.id, word: word.trim().toLowerCase() } },
+    data: { category: category?.trim() || null },
+  });
+  revalidatePath("/bookmarks");
+  return {};
 }
 
 export async function updateSavedWordNoteAction(word: string, note: string): Promise<ActionResult> {
@@ -141,4 +157,33 @@ export async function deleteSavedWordAction(word: string): Promise<ActionResult>
   revalidatePath("/dictionary");
   revalidatePath("/bookmarks");
   return {};
+}
+
+/** Auto-star/unstar a word as a side effect of rating it "chưa nhớ" (AGAIN)
+ * vs. anything else, across every flashcard/quiz flow in the app — so
+ * "words gotten wrong or not yet remembered" become the same starred list
+ * shown in Đã lưu, with no separate tracking needed. Idempotent (upsert /
+ * deleteMany), unlike deleteSavedWordAction which throws if absent. */
+export async function ensureSavedWordAction(word: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) return;
+  const normalized = word.trim().toLowerCase();
+  if (!normalized) return;
+
+  await db.savedWord.upsert({
+    where: { userId_word: { userId: profile.id, word: normalized } },
+    create: { userId: profile.id, word: normalized },
+    update: {},
+  });
+  revalidatePath("/bookmarks");
+}
+
+export async function unsaveWordIfExistsAction(word: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) return;
+  const normalized = word.trim().toLowerCase();
+  if (!normalized) return;
+
+  await db.savedWord.deleteMany({ where: { userId: profile.id, word: normalized } });
+  revalidatePath("/bookmarks");
 }

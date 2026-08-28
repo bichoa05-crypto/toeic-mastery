@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Clock, ListChecks, Trophy, Users } from "lucide-react";
+import { Clock, Crown, ListChecks, Trophy, Users } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -16,8 +16,15 @@ export async function generateMetadata({ params }: { params: Promise<{ testId: s
   return { title: test?.title ?? "Đề thi" };
 }
 
-export default async function TestDetailPage({ params }: { params: Promise<{ testId: string }> }) {
+export default async function TestDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ testId: string }>;
+  searchParams: Promise<{ limitReached?: string }>;
+}) {
   const { testId } = await params;
+  const { limitReached } = await searchParams;
   const profile = await requireUser();
 
   const test = await db.test.findUnique({
@@ -70,6 +77,16 @@ export default async function TestDetailPage({ params }: { params: Promise<{ tes
             </span>
           )}
         </div>
+
+        {limitReached && (
+          <div className="mt-5 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 text-sm">
+            <Crown className="size-5 shrink-0 text-primary" />
+            <p className="flex-1">Bạn đã dùng hết lượt làm {test.isFullTest ? "Full Mock Test" : "Mini Test"} miễn phí hôm nay.</p>
+            <Button asChild size="sm">
+              <Link href="/pricing">Nâng cấp Pro</Link>
+            </Button>
+          </div>
+        )}
 
         <div className="mt-6 flex flex-wrap gap-3">
           {activeAttempt ? (

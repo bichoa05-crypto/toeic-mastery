@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Bookmark, Gamepad2, Star } from "lucide-react";
+import { Bookmark, Star } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getBookmarks } from "@/lib/data/bookmarks";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Button } from "@/components/ui/button";
 import { AddCustomWordsDialog } from "@/components/vocabulary/add-custom-words-dialog";
+import { SavedWordsManager } from "@/components/vocabulary/saved-words-manager";
 import { PART_META } from "@/lib/constants/toeic";
 
 export const metadata: Metadata = { title: "Đã lưu" };
@@ -58,28 +58,16 @@ export default async function BookmarksPage() {
               <AddCustomWordsDialog />
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline" size="sm" className="w-fit">
-                  <Link href="/bookmarks/study">
-                    <Gamepad2 className="size-4" /> Học & Chơi với từ đã lưu
-                  </Link>
-                </Button>
-                <AddCustomWordsDialog />
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {savedWords.map((w) => (
-                  <Link
-                    key={w.id}
-                    href={`/dictionary/${encodeURIComponent(w.word)}`}
-                    className="flex items-center justify-between rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm hover:border-primary/40"
-                  >
-                    {w.word}
-                    {w.isFavorite && <Star className="size-3.5 fill-current text-warning" />}
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <SavedWordsManager
+              words={savedWords.map((w) => ({
+                id: w.id,
+                word: w.word,
+                isFavorite: w.isFavorite,
+                category: w.category,
+                createdAt: w.createdAt.toISOString(),
+              }))}
+              categories={[...new Set(savedWords.map((w) => w.category).filter((c): c is string => !!c))].sort()}
+            />
           )}
         </TabsContent>
 

@@ -100,38 +100,62 @@ export interface PathDayDetail {
   stepsCompleted: number;
   stars: number;
   items: StudyItem[];
+  /** Lowercased terms among this day's words currently in Đã lưu (i.e.
+   * rated "chưa nhớ"/wrong somewhere) — drives the "Ôn từ sai" option on
+   * the day-complete screen. */
+  starredTerms: string[];
 }
 
 /** A single day's detail for the runner page — 404s for an out-of-range day
- * number rather than exposing an empty/locked shell. */
+ * number rather than exposing an empty/locked shell.
+ *
+ * Runs its independent lookups via Promise.all instead of one big
+ * `path -> all 20 days + progress -> day's words -> starred words` chain:
+ * that used to be 3 fully sequential round trips (the first fetching every
+ * day's progress row just to read one boolean), which is exactly the kind
+ * of thing that turns "a bit slow" into "several seconds" once each round
+ * trip alone costs real latency (as it does from this dev machine to the
+ * remote Supabase instance). */
 export async function getPathDayDetail(dayNumber: number, userId: string): Promise<PathDayDetail> {
-  const path = await db.vocabularyPath.findUnique({
-    where: { slug: PATH_SLUG },
-    include: { days: { orderBy: { dayNumber: "asc" }, include: { progress: { where: { userId } } } } },
-  });
+  const path = await db.vocabularyPath.findUnique({ where: { slug: PATH_SLUG }, select: { id: true } });
   if (!path) notFound();
 
-  const dayIndex = path.days.findIndex((d) => d.dayNumber === dayNumber);
-  if (dayIndex === -1) notFound();
+  const [currentDay, totalDays, previousDayProgress, currentDayProgress] = await Promise.all([
+    db.vocabularyPathDay.findUnique({
+      where: { pathId_dayNumber: { pathId: path.id, dayNumber } },
+      include: { words: { orderBy: { orderIndex: "asc" }, include: { word: true } } },
+    }),
+    db.vocabularyPathDay.count({ where: { pathId: path.id } }),
+    dayNumber > 1
+      ? db.userVocabularyPathDayProgress.findFirst({
+          where: { userId, day: { pathId: path.id, dayNumber: dayNumber - 1 } },
+          select: { stepsCompleted: true },
+        })
+      : Promise.resolve(null),
+    db.userVocabularyPathDayProgress.findFirst({
+      where: { userId, day: { pathId: path.id, dayNumber } },
+      select: { stepsCompleted: true, stars: true },
+    }),
+  ]);
+  if (!currentDay) notFound();
 
-  const isUnlocked = dayIndex === 0 || (path.days[dayIndex - 1].progress[0]?.stepsCompleted ?? 0) >= STEPS_PER_DAY;
+  const isUnlocked = dayNumber === 1 || (previousDayProgress?.stepsCompleted ?? 0) >= STEPS_PER_DAY;
 
-  const dayWithWords = await db.vocabularyPathDay.findUniqueOrThrow({
-    where: { id: path.days[dayIndex].id },
-    include: { words: { orderBy: { orderIndex: "asc" }, include: { word: true } } },
+  const dayWordTerms = currentDay.words.map((w) => w.word.word.toLowerCase());
+  const starredMatches = await db.savedWord.findMany({
+    where: { userId, word: { in: dayWordTerms } },
+    select: { word: true },
   });
 
-  const progress = path.days[dayIndex].progress[0];
-
   return {
-    dayId: dayWithWords.id,
+    dayId: currentDay.id,
     dayNumber,
-    tierLabel: dayWithWords.tierLabel,
-    totalDays: path.days.length,
+    tierLabel: currentDay.tierLabel,
+    totalDays,
     isUnlocked,
-    stepsCompleted: progress?.stepsCompleted ?? 0,
-    stars: progress?.stars ?? 0,
-    items: dayWithWords.words.map((w) => ({
+    stepsCompleted: currentDayProgress?.stepsCompleted ?? 0,
+    stars: currentDayProgress?.stars ?? 0,
+    items: currentDay.words.map((w) => ({
       id: w.word.id,
       term: w.word.word,
       ipa: w.word.ipa,
@@ -140,5 +164,6 @@ export async function getPathDayDetail(dayNumber: number, userId: string): Promi
       exampleEn: w.word.exampleEn,
       audioUrl: w.word.audioUrlUs ?? w.word.audioUrlUk,
     })),
+    starredTerms: starredMatches.map((s) => s.word),
   };
 }

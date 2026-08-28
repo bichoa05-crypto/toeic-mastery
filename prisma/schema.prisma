@@ -21,6 +21,17 @@ enum Role {
   ADMIN
 }
 
+enum PlanTier {
+  FREE
+  PRO
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
 enum ContentStatus {
   DRAFT
   PUBLISHED
@@ -129,6 +140,8 @@ model Profile {
   fullName                String?   @map("full_name")
   avatarUrl               String?   @map("avatar_url")
   role                    Role      @default(STUDENT)
+  plan                    PlanTier  @default(FREE)
+  proExpiresAt            DateTime? @map("pro_expires_at")
   currentScore            Int?      @map("current_score")
   targetScore             Int?      @map("target_score")
   examDate                DateTime? @map("exam_date") @db.Date
@@ -146,12 +159,48 @@ model Profile {
   studySessions     StudySession[]
   scoreHistory      ScoreHistory[]
   dictionaryHistory DictionaryHistory[]
+  answerRevealLogs  AnswerRevealLog[]
   savedWords        SavedWord[]
   questionReports   QuestionReport[]
   createdTests      Test[]              @relation("TestAuthor")
   pathDayProgress   UserVocabularyPathDayProgress[]
+  payments          Payment[]
+  redeemedCodes     ActivationCode[]
 
   @@map("profiles")
+}
+
+model Payment {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  orderId          String        @unique @map("order_id")
+  amount           Int
+  planDurationDays Int           @map("plan_duration_days")
+  status           PaymentStatus @default(PENDING)
+  vnpTransactionNo String?       @map("vnp_transaction_no")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  paidAt           DateTime?     @map("paid_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("payments")
+}
+
+/** Admin-generated single-use codes that grant Pro directly, as an
+ * alternative to the bank-transfer + manual-approval flow (e.g. for
+ * giveaways, partners, or a learner who paid through some other channel). */
+model ActivationCode {
+  id               String    @id @default(uuid()) @db.Uuid
+  code             String    @unique
+  planDurationDays Int       @map("plan_duration_days")
+  usedByUserId     String?   @map("used_by_user_id") @db.Uuid
+  usedAt           DateTime? @map("used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  usedBy Profile? @relation(fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("activation_codes")
 }
 
 model UserSettings {
@@ -275,6 +324,7 @@ model Question {
   answers      AttemptAnswer[]
   bookmarks    Bookmark[]
   reports      QuestionReport[]
+  revealLogs   AnswerRevealLog[]
 
   @@index([testId, part, orderIndex])
   @@index([part])
@@ -664,6 +714,23 @@ model DictionaryHistory {
   @@map("dictionary_history")
 }
 
+/** One row per "Chữa tức thì" (reveal answer + explanation) use in Practice
+ * mode — same shape/purpose as DictionaryHistory: a plain event log counted
+ * for the free-tier daily cap rather than a separate counter to keep in
+ * sync. */
+model AnswerRevealLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("answer_reveal_logs")
+}
+
 model SavedWord {
   id         String   @id @default(uuid()) @db.Uuid
   userId     String   @map("user_id") @db.Uuid
@@ -676,6 +743,12 @@ model SavedWord {
    * present, so a learner isn't limited to words the dictionary API knows. */
   meaningVi  String?  @map("meaning_vi")
   exampleEn  String?  @map("example_en")
+  /** Free-text, learner-named folder (e.g. "OFFICE") — deliberately not a
+   * separate relational model: a category only ever exists as a string a
+   * handful of SavedWord rows happen to share, so renaming/deleting one is
+   * just a bulk string update, no cascade/orphan bookkeeping needed. Null =
+   * uncategorized. */
+  category   String?
   createdAt  DateTime @default(now()) @map("created_at")
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)

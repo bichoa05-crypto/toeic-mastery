@@ -5,9 +5,27 @@ import { StudyGameLauncher } from "@/components/study-game/study-game-launcher";
 
 export const metadata: Metadata = { title: "Học & Chơi — Từ đã lưu" };
 
-export default async function SavedWordsStudyPage() {
+export default async function SavedWordsStudyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string; words?: string }>;
+}) {
   const profile = await requireUser();
-  const items = await getSavedWordStudyItems(profile.id);
+  const { category, words } = await searchParams;
 
-  return <StudyGameLauncher items={items} title="Từ đã lưu" backHref="/bookmarks" backLabel="Quay lại Đã lưu" />;
+  const wordIds = words ? words.split(",").filter(Boolean) : undefined;
+  const items = await getSavedWordStudyItems(profile.id, {
+    wordIds,
+    ...(wordIds ? {} : category !== undefined ? { category: category === "none" ? null : category } : {}),
+  });
+
+  const title = wordIds
+    ? `Từ đã lưu (${wordIds.length} từ đã chọn)`
+    : category === "none"
+      ? "Từ đã lưu — Chưa phân loại"
+      : category
+        ? `Từ đã lưu — ${category}`
+        : "Từ đã lưu";
+
+  return <StudyGameLauncher items={items} title={title} backHref="/bookmarks" backLabel="Quay lại Đã lưu" />;
 }

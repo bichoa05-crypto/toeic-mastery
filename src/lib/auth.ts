@@ -46,6 +46,29 @@ export async function requireAdmin(): Promise<Profile> {
   return profile;
 }
 
+/** The one account allowed to change a user's Học viên/Admin role — every
+ * other admin can still see the admin section (requireAdmin still governs
+ * page access) but the role control itself is view-only for them. Plain
+ * email check by design: this is a single hardcoded owner account, not a
+ * general permissions system. */
+export const SUPER_ADMIN_EMAIL = "bichoa05@gmail.com";
+
+export function isSuperAdmin(profile: Pick<Profile, "email">): boolean {
+  return profile.email === SUPER_ADMIN_EMAIL;
+}
+
+/** True while the user's plan is PRO and (if set) hasn't lapsed yet — a
+ * null `proExpiresAt` means a lifetime/admin-granted Pro with no expiry. */
+export function isPro(profile: Pick<Profile, "plan" | "proExpiresAt">): boolean {
+  return profile.plan === "PRO" && (!profile.proExpiresAt || profile.proExpiresAt > new Date());
+}
+
+export async function requirePro(): Promise<Profile> {
+  const profile = await requireUser();
+  if (!isPro(profile)) redirect("/pricing?upgrade=required");
+  return profile;
+}
+
 /** For Route Handlers: no redirect, callers return a 401 JSON response. */
 export async function getAuthedProfileOrNull(): Promise<Profile | null> {
   return getCurrentProfile();

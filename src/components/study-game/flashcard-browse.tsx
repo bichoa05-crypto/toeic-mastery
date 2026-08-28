@@ -1,35 +1,60 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, Volume2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AnimatePresence, motion } from "framer-motion";
+import { Volume2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import type { StudyItem } from "@/lib/services/study-game";
 import type { ReviewRating } from "@/lib/services/spaced-repetition";
+import { RATING_BUTTONS } from "@/components/vocabulary/flash-card";
+import { ensureSavedWordAction, unsaveWordIfExistsAction } from "@/lib/actions/dictionary";
 
-/** Free browse-through flashcards — flip to see the meaning, no grading.
- * The lightweight "học" half of "học mà chơi": zero pressure, just exposure.
- * Flipping a card (actually looking at the meaning, not just skipping past
- * it) still counts as a light "GOOD" review — passive exposure is still
- * study, just gentler than getting quizzed on it. */
+interface QueueEntry extends StudyItem {
+  queueKey: string;
+}
+
+/** Flashcard learning flow — flip to see the meaning, then self-rate like
+ * the dedicated review page does. "Học lại" requeues the word to the back of
+ * this same session's queue instead of just moving on, so a word you don't
+ * know gets seen again before you finish, matching how the dedicated review
+ * flow's AGAIN rating behaves. */
 export function FlashcardBrowse({
   items,
   onFinish,
   onItemResult,
+  autoStar = true,
 }: {
   items: StudyItem[];
   onFinish: () => void;
   onItemResult?: (itemId: string, rating: ReviewRating) => void;
+  /** Off for Saved Words: those are a deliberate, manually-curated list, not
+   * an auto-managed "needs review" queue — rating one "Đã thuộc" here must
+   * not silently delete it from Đã lưu. On everywhere else (real
+   * VocabularyWords), where "needs review" genuinely means "add/remove from
+   * Đã lưu". */
+  autoStar?: boolean;
 }) {
+  const [queue, setQueue] = React.useState<QueueEntry[]>(() => items.map((item, i) => ({ ...item, queueKey: `${item.id}-${i}` })));
   const [index, setIndex] = React.useState(0);
   const [flipped, setFlipped] = React.useState(false);
-  const item = items[index];
-  const isLast = index === items.length - 1;
+  const requeueCounter = React.useRef(items.length);
 
-  function goNext() {
-    if (flipped) onItemResult?.(item.id, "GOOD");
-    if (isLast) {
+  const item = queue[index];
+  const isLast = index === queue.length - 1;
+
+  function handleRate(rating: ReviewRating) {
+    onItemResult?.(item.id, rating);
+    // "Chưa nhớ" -> the word joins Đã lưu as something to review again;
+    // any other rating means it's no longer urgent, so drop it from there.
+    if (rating === "AGAIN") {
+      if (autoStar) void ensureSavedWordAction(item.term);
+      const key = `${item.id}-${requeueCounter.current++}`;
+      setQueue((q) => [...q, { ...item, queueKey: key }]);
+    } else if (autoStar) {
+      void unsaveWordIfExistsAction(item.term);
+    }
+    if (index + 1 >= queue.length && rating !== "AGAIN") {
       onFinish();
       return;
     }
@@ -53,11 +78,11 @@ export function FlashcardBrowse({
       <div className="w-full max-w-sm">
         <div className="mb-1.5 flex justify-between text-xs text-muted-foreground">
           <span>
-            {index + 1} / {items.length}
+            {index + 1} / {queue.length}
           </span>
           <span>{flipped ? "Nghĩa" : "Từ vựng"}</span>
         </div>
-        <Progress value={((index + 1) / items.length) * 100} className="h-1.5" />
+        <Progress value={((index + 1) / queue.length) * 100} className="h-1.5" />
       </div>
 
       <button
@@ -83,19 +108,44 @@ export function FlashcardBrowse({
       </button>
 
       <div className="flex items-center gap-3">
-        <Button type="button" variant="outline" size="icon" onClick={goPrev} disabled={index === 0} aria-label="Từ trước">
-          <ChevronLeft className="size-4" />
-        </Button>
+        <button
+          type="button"
+          onClick={goPrev}
+          disabled={index === 0}
+          aria-label="Từ trước"
+          className="flex size-9 items-center justify-center rounded-lg border border-input disabled:opacity-40"
+        >
+          ‹
+        </button>
         {item.audioUrl && (
-          <Button type="button" variant="outline" size="icon" onClick={playAudio} aria-label="Phát âm">
+          <button type="button" onClick={playAudio} aria-label="Phát âm" className="flex size-9 items-center justify-center rounded-lg border border-input">
             <Volume2 className="size-4" />
-          </Button>
+          </button>
         )}
-        <Button type="button" onClick={goNext} className={cn(isLast && "bg-success hover:bg-success/90")}>
-          {isLast ? "Hoàn thành" : "Từ tiếp theo"}
-          {!isLast && <ChevronRight className="size-4" />}
-        </Button>
       </div>
+
+      <AnimatePresence>
+        {flipped && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="grid w-full max-w-sm grid-cols-4 gap-2"
+          >
+            {RATING_BUTTONS.map((btn) => (
+              <button
+                key={btn.rating}
+                type="button"
+                onClick={() => handleRate(btn.rating)}
+                className={cn("rounded-xl px-2 py-2.5 text-xs font-semibold transition-colors", btn.className)}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {!flipped && isLast && <p className="text-xs text-muted-foreground">Lật thẻ cuối cùng để tự đánh giá và hoàn thành.</p>}
     </div>
   );
 }

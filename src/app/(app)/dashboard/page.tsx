@@ -92,6 +92,12 @@ export default async function DashboardPage() {
 
         <section className="rounded-2xl border border-border bg-card p-5 shadow-soft">
           <SectionHeader icon={Layers} title="Từ cần ôn hôm nay" />
+          {(data.vocabularyReminder.dueTodayCount > 0 || data.vocabularyReminder.dueTomorrowCount > 0) && (
+            <p className="mb-3 rounded-lg bg-accent/50 px-3 py-2 text-xs text-accent-foreground">
+              {data.vocabularyReminder.dueTodayCount > 0 && <>Hôm nay bạn có <strong>{data.vocabularyReminder.dueTodayCount}</strong> từ cần ôn tập. </>}
+              {data.vocabularyReminder.dueTomorrowCount > 0 && <>Ngày mai bạn còn <strong>{data.vocabularyReminder.dueTomorrowCount}</strong> từ cần ôn.</>}
+            </p>
+          )}
           <DueWordList words={data.dueVocabulary} />
         </section>
       </div>

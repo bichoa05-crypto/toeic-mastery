@@ -251,6 +251,24 @@
   animation: glow-pulse 2.2s ease-in-out infinite;
 }
 
+/* Pulsing blue background glow — for a nav button that should read as "lit
+   up"/attention-grabbing (Quick Study), distinct from glow-pulse's
+   currentColor drop-shadow which is meant for small icons, not a filled
+   button background. */
+@keyframes button-glow-blue {
+  0%,
+  100% {
+    box-shadow: 0 0 8px -1px rgba(59, 130, 246, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 18px 3px rgba(59, 130, 246, 0.9);
+  }
+}
+
+.glow-pulse-blue {
+  animation: button-glow-blue 2s ease-in-out infinite;
+}
+
 /* Mascot bubble: pops in, holds, then fades itself out — purely CSS-driven
    (no JS timer/setState) so it can auto-collapse without risking permanently
    covering page content. Re-keying the element (per state/message) restarts
@@ -327,6 +345,7 @@
   .hero-ambient,
   .hero-blob,
   .glow-pulse,
+  .glow-pulse-blue,
   .mascot-bubble-auto,
   .mascot-jump,
   .notify-dot {

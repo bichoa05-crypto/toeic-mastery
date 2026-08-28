@@ -10,42 +10,23 @@ export interface SrsResult extends SrsState {
   nextReviewDate: Date;
 }
 
-/** Anki-style 4-button rating mapped onto the SM-2 0-5 quality scale. */
-const QUALITY_BY_RATING: Record<ReviewRating, number> = {
-  AGAIN: 2,
-  HARD: 3,
-  GOOD: 4,
-  EASY: 5,
+/**
+ * Fixed spaced-repetition buckets (replaces the earlier ease-factor-driven
+ * SM-2 growth): "Học lại" (AGAIN) resurfaces today, "Khó" (HARD) after 1 day,
+ * "Dễ" (GOOD) after 2 days, "Đã thuộc" (EASY) after 4 days — same rule used
+ * whether the signal comes from a self-rated flashcard or a derived quiz
+ * outcome (see quiz-mode.tsx's wrong-attempt -> rating mapping).
+ */
+const INTERVAL_DAYS_BY_RATING: Record<ReviewRating, number> = {
+  AGAIN: 0,
+  HARD: 1,
+  GOOD: 2,
+  EASY: 4,
 };
 
-const MIN_EASE_FACTOR = 1.3;
-
-/**
- * Simplified SM-2. On a lapse (quality < 3) repetitions reset and the card
- * is due again the next day; otherwise the interval grows by the ease
- * factor, which itself is nudged up/down based on how easy the review felt.
- */
 export function computeNextReview(state: SrsState, rating: ReviewRating, now: Date = new Date()): SrsResult {
-  const quality = QUALITY_BY_RATING[rating];
-  const { repetitions, intervalDays, easeFactor } = state;
-
-  const nextEase = Math.max(
-    MIN_EASE_FACTOR,
-    easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-  );
-
-  let nextInterval: number;
-  let nextRepetitions: number;
-
-  if (quality < 3) {
-    nextRepetitions = 0;
-    nextInterval = 1;
-  } else {
-    nextRepetitions = repetitions + 1;
-    if (nextRepetitions === 1) nextInterval = 1;
-    else if (nextRepetitions === 2) nextInterval = 6;
-    else nextInterval = Math.round(intervalDays * nextEase);
-  }
+  const nextInterval = INTERVAL_DAYS_BY_RATING[rating];
+  const nextRepetitions = rating === "AGAIN" ? 0 : state.repetitions + 1;
 
   const nextReviewDate = new Date(now);
   nextReviewDate.setDate(nextReviewDate.getDate() + nextInterval);
@@ -53,7 +34,7 @@ export function computeNextReview(state: SrsState, rating: ReviewRating, now: Da
   return {
     repetitions: nextRepetitions,
     intervalDays: nextInterval,
-    easeFactor: nextEase,
+    easeFactor: state.easeFactor,
     nextReviewDate,
   };
 }

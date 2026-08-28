@@ -10,6 +10,7 @@ import type { ReviewRating } from "@/lib/services/spaced-repetition";
 import { FlashcardBrowse } from "@/components/study-game/flashcard-browse";
 import { QuizMode } from "@/components/study-game/quiz-mode";
 import { MatchingGame } from "@/components/study-game/matching-game";
+import { VocabularyReviewOverview } from "@/components/vocabulary/vocabulary-review-overview";
 import { cn } from "@/lib/utils";
 
 type Mode = "flashcard" | "quiz" | "match";
@@ -17,50 +18,93 @@ type Mode = "flashcard" | "quiz" | "match";
 const MIN_ITEMS_FOR_MATCH = 3;
 
 /** Shared entry point for both the Vocabulary topic games and the Saved
- * Words games — same three modes, same session-time logging, different
- * item source feeding it.
+ * Words games — same three modes, same session-time logging, same
+ * "review again" overview after finishing, different item source feeding it.
  *
  * `trackable` should only be true when `items` are real `VocabularyWord`s
  * (topic study, where `item.id` is a `vocabularyWordId`) — Saved Words have
- * no SRS row to update, so their sessions log time but not word progress. */
+ * no SRS row to update, so their sessions log time but not word progress,
+ * and (crucially) must NOT auto-star/unstar: Saved Words is a deliberately
+ * curated list, not an auto-managed "needs review" queue, so rating a saved
+ * word "Đã thuộc" here must never silently delete it. For Saved Words the
+ * "needs review" set shown on the overview is purely this session's own
+ * ratings instead of a persisted signal. */
 export function StudyGameLauncher({
   items,
   title,
   backHref,
   backLabel,
   trackable = false,
+  initialStarredTerms = [],
 }: {
   items: StudyItem[];
   title: string;
   backHref: string;
   backLabel: string;
   trackable?: boolean;
+  initialStarredTerms?: string[];
 }) {
   const [mode, setMode] = React.useState<Mode | null>(null);
+  const [showOverview, setShowOverview] = React.useState(false);
+  const [reviewItems, setReviewItems] = React.useState<StudyItem[] | null>(null);
+  const [sessionOverrides, setSessionOverrides] = React.useState<Record<string, boolean>>({});
   const startedAtRef = React.useRef<number | null>(null);
+
+  const effectiveStarredTerms = React.useMemo(() => {
+    const base = new Set(trackable ? initialStarredTerms.map((t) => t.toLowerCase()) : []);
+    for (const [term, needsReview] of Object.entries(sessionOverrides)) {
+      if (needsReview) base.add(term);
+      else base.delete(term);
+    }
+    return [...base];
+  }, [trackable, initialStarredTerms, sessionOverrides]);
 
   function start(next: Mode) {
     startedAtRef.current = Date.now();
     setMode(next);
   }
 
+  function logElapsed() {
+    if (startedAtRef.current === null) return;
+    const elapsedSec = Math.round((Date.now() - startedAtRef.current) / 1000);
+    void logStudySessionAction(elapsedSec);
+    startedAtRef.current = null;
+  }
+
   function finishSession() {
-    if (startedAtRef.current !== null) {
-      const elapsedSec = Math.round((Date.now() - startedAtRef.current) / 1000);
-      void logStudySessionAction(elapsedSec);
-      startedAtRef.current = null;
-    }
+    logElapsed();
     setMode(null);
+    setShowOverview(true);
+  }
+
+  function finishReview() {
+    logElapsed();
+    setReviewItems(null);
+    setShowOverview(true);
   }
 
   // So "Từ vựng đã học" (and the XP derived from it) actually moves when
   // playing a game, not just when using the dedicated graded review — every
   // right/wrong signal a game produces feeds the same SRS progress.
-  const handleItemResult = trackable
-    ? (itemId: string, rating: ReviewRating) => {
-        void practiceVocabularyWordAction(itemId, rating);
-      }
-    : undefined;
+  // Returns the write's promise (instead of firing it and forgetting) so
+  // QuizMode can await every result together before letting the user leave
+  // the results screen — a burst of ~15-20 unawaited writes fired the
+  // instant a quiz finishes is exactly the kind that silently never lands
+  // if the learner closes the tab moments later, which is a very natural
+  // thing to do right after seeing "Cả nhà vỗ tay!".
+  const handleItemResult = React.useCallback(
+    async (itemId: string, rating: ReviewRating) => {
+      if (trackable) await practiceVocabularyWordAction(itemId, rating);
+      const term = items.find((i) => i.id === itemId)?.term.toLowerCase();
+      if (!term) return;
+      // Quiz stars on anything but a perfect first try; flashcards/match
+      // (which only ever emit "GOOD") star only on "Học lại" — same rule
+      // QuizMode/FlashcardBrowse apply to Đã lưu themselves when autoStar.
+      const needsReview = mode === "quiz" ? rating !== "EASY" : rating === "AGAIN";
+      setSessionOverrides((prev) => ({ ...prev, [term]: needsReview }));
+    },
+    [items, mode, trackable]
+  );
 
   if (items.length === 0) {
     return (
@@ -74,14 +118,34 @@ export function StudyGameLauncher({
     );
   }
 
+  if (reviewItems) {
+    return <FlashcardBrowse items={reviewItems} onFinish={finishReview} onItemResult={handleItemResult} autoStar={trackable} />;
+  }
+
+  if (showOverview) {
+    return (
+      <VocabularyReviewOverview
+        key={effectiveStarredTerms.join(",")}
+        title={title}
+        items={items}
+        starredTerms={effectiveStarredTerms}
+        onStartReview={(list) => {
+          startedAtRef.current = Date.now();
+          setReviewItems(list);
+        }}
+        onBack={() => setShowOverview(false)}
+      />
+    );
+  }
+
   if (mode) {
     return (
       <div className="flex flex-col gap-5">
         <button type="button" onClick={finishSession} className="flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Chọn chế độ khác
         </button>
-        {mode === "flashcard" && <FlashcardBrowse items={items} onFinish={finishSession} onItemResult={handleItemResult} />}
-        {mode === "quiz" && <QuizMode items={items} onFinish={finishSession} onItemResult={handleItemResult} />}
+        {mode === "flashcard" && <FlashcardBrowse items={items} onFinish={finishSession} onItemResult={handleItemResult} autoStar={trackable} />}
+        {mode === "quiz" && <QuizMode items={items} onFinish={finishSession} onItemResult={handleItemResult} autoStar={trackable} />}
         {mode === "match" && <MatchingGame items={items} onFinish={finishSession} onItemResult={handleItemResult} />}
       </div>
     );

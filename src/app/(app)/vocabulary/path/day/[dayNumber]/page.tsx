@@ -25,6 +25,7 @@ export default async function VocabularyPathDayPage({ params }: { params: Promis
       initialStepsCompleted={day.stepsCompleted}
       initialStars={day.stars}
       items={day.items}
+      starredTerms={day.starredTerms}
     />
   );
 }

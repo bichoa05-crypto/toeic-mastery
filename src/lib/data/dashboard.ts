@@ -1,12 +1,22 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getOverallStats, getPartAccuracies } from "@/lib/data/skill-stats";
+import { getVocabularyReminder } from "@/lib/data/vocabulary";
 import { generateRecommendations } from "@/lib/services/recommendation";
 import { computeXp, getXpProgress } from "@/lib/services/xp";
 
 export async function getDashboardData(userId: string) {
-  const [profile, latestScore, continueAttempt, suggestedTests, partAccuracies, overallStats, dueVocabulary, vocabMistakeAgg] =
-    await Promise.all([
+  const [
+    profile,
+    latestScore,
+    continueAttempt,
+    suggestedTests,
+    partAccuracies,
+    overallStats,
+    dueVocabulary,
+    vocabMistakeAgg,
+    vocabularyReminder,
+  ] = await Promise.all([
       db.profile.findUniqueOrThrow({ where: { id: userId } }),
       db.scoreHistory.findFirst({ where: { userId }, orderBy: { recordedAt: "desc" } }),
       db.attempt.findFirst({
@@ -40,6 +50,7 @@ export async function getDashboardData(userId: string) {
         where: { attempt: { userId, status: "SUBMITTED" }, isCorrect: false, question: { part: { in: ["PART5", "PART6"] } } },
         _count: { _all: true },
       }),
+      getVocabularyReminder(userId),
     ]);
 
   const wrongTotalAgg = await db.attemptAnswer.count({
@@ -84,6 +95,7 @@ export async function getDashboardData(userId: string) {
     partAccuracies,
     overallStats,
     dueVocabulary,
+    vocabularyReminder,
     recommendations,
     weeklyStudyMinutes: Math.round((weeklyStudySeconds._sum.durationSec ?? 0) / 60),
     activityHeatmap,

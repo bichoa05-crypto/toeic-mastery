@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LogOut, Menu, Search, Settings, User as UserIcon } from "lucide-react";
+import { Bell, Clock, Crown, LogOut, Menu, Search, Settings, User as UserIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,8 +19,68 @@ import { signOutAction } from "@/app/(auth)/actions";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SoundPlayerPopover } from "@/components/layout/sound-player-popover";
 import type { SidebarProfile } from "@/components/layout/app-sidebar";
+import type { VocabularyReminder } from "@/lib/data/vocabulary";
 
-export function TopHeader({ profile, onOpenSearch }: { profile: SidebarProfile; onOpenSearch: () => void }) {
+function ReminderBell({ reminder }: { reminder: VocabularyReminder }) {
+  const total = reminder.dueTodayCount + reminder.dueTomorrowCount;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="relative flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Nhắc nhở ôn tập"
+        >
+          <Bell className="size-[18px]" />
+          {total > 0 && (
+            <span className="notify-dot absolute right-1.5 top-1.5 size-2 rounded-full bg-destructive" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel>Nhắc ôn từ vựng</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {total === 0 ? (
+          <p className="px-2 py-3 text-sm text-muted-foreground">Không có từ nào cần ôn — bạn đang theo kịp lịch ôn tập!</p>
+        ) : (
+          <div className="flex flex-col gap-2 px-2 py-2 text-sm">
+            {reminder.dueTodayCount > 0 && (
+              <p>
+                Hôm nay bạn có <strong>{reminder.dueTodayCount}</strong> từ cần ôn tập.
+              </p>
+            )}
+            {reminder.dueTomorrowCount > 0 && (
+              <p>
+                Ngày mai bạn còn <strong>{reminder.dueTomorrowCount}</strong> từ cần ôn.
+              </p>
+            )}
+          </div>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/vocabulary/review">Ôn tập ngay</Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function TopHeader({
+  profile,
+  vocabularyReminder,
+  onOpenSearch,
+}: {
+  profile: SidebarProfile;
+  vocabularyReminder: VocabularyReminder;
+  onOpenSearch: () => void;
+}) {
+  // Trivial re-check of the same rule as src/lib/auth.ts's isPro() — that
+  // file is server-only (Supabase server client + cache()), so it can't be
+  // imported into this client component; duplicating a one-line boolean
+  // check is cheaper than threading a computed prop through every caller.
+  const isPro = profile.plan === "PRO" && (!profile.proExpiresAt || profile.proExpiresAt > new Date());
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-sm sm:px-6">
       <Sheet>
@@ -70,6 +130,23 @@ export function TopHeader({ profile, onOpenSearch }: { profile: SidebarProfile; 
       </button>
 
       <div className="ml-auto flex items-center gap-2">
+        <Button asChild size="sm" className="glow-pulse-blue hidden bg-blue-500 text-white hover:bg-blue-400 sm:flex">
+          <Link href="/quick-study">
+            <Clock className="size-4" /> Quick Study
+          </Link>
+        </Button>
+        {!isPro && (
+          <Button
+            asChild
+            size="sm"
+            className="hidden bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-[0_0_16px_-2px_rgba(249,115,22,0.6)] hover:from-amber-400 hover:to-orange-400 sm:flex"
+          >
+            <Link href="/pricing">
+              <Crown className="size-4" /> Nâng cấp
+            </Link>
+          </Button>
+        )}
+        <ReminderBell reminder={vocabularyReminder} />
         <SoundPlayerPopover />
         <ThemeToggle />
         <DropdownMenu>
