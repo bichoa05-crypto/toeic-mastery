@@ -82,7 +82,12 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && dismiss()}>
-      <DialogContent showCloseButton={false} className="max-w-md gap-0 overflow-hidden border-0 p-0 shadow-2xl">
+      <DialogContent
+        showCloseButton={false}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="max-w-md gap-0 overflow-hidden border-0 p-0 shadow-2xl"
+      >
         <div className="hero-ambient relative overflow-hidden px-6 pb-7 pt-6 text-white">
           <div className="hero-blob pointer-events-none absolute -top-16 -right-10 size-48 rounded-full bg-white/15 blur-3xl" aria-hidden />
           <div

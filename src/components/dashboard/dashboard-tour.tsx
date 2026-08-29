@@ -48,7 +48,7 @@ export function DashboardTour() {
         element: '[data-tour="dashboard-icons"]',
         title: "Không gian học không xao nhãng",
         description:
-          "Bật nhạc Lo-fi/Chill để tăng độ tập trung, tùy chỉnh giao diện Dark Mode bảo vệ mắt và nhận thông báo nhắc lịch học để không đứt chuỗi Streak.",
+          "Bật nhạc Lo-fi/Chill để tăng độ tập trung, đổi Live theme cho cả trang web theo phong cách bạn thích, tùy chỉnh giao diện Dark Mode bảo vệ mắt và nhận thông báo nhắc lịch học để không đứt chuỗi Streak.",
         nextBtnText: "Tiếp tục",
         side: "bottom",
         align: "end",

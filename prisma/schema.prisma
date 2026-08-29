@@ -255,6 +255,10 @@ model UserSettings {
   id                     String          @id @default(uuid()) @db.Uuid
   userId                 String          @unique @map("user_id") @db.Uuid
   theme                  ThemePreference @default(LIGHT)
+  /** Selected site-wide "Live theme" wallpaper (see SITE_THEMES registry in
+   * src/lib/constants/site-themes.ts). Plain string, not an enum, so new
+   * themes can ship without a migration. */
+  siteTheme              String          @default("aurora") @map("site_theme")
   language               String          @default("vi")
   audioAutoplay          Boolean         @default(true) @map("audio_autoplay")
   defaultPlaybackSpeed   Float           @default(1) @map("default_playback_speed")

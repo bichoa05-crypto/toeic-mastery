@@ -3,6 +3,7 @@ import { BookOpen, CheckCircle2, Clock3, Layers, Lightbulb, ListChecks, PlayCirc
 
 import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/data/dashboard";
+import { getSiteThemeId } from "@/lib/data/site-theme";
 import { StatCard } from "@/components/shared/stat-card";
 import { SkillRadar } from "@/components/shared/skill-radar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -57,7 +58,7 @@ const REVEAL = [
 
 export default async function DashboardPage() {
   const profile = await requireUser();
-  const data = await getDashboardData(profile.id);
+  const [data, siteThemeId] = await Promise.all([getDashboardData(profile.id), getSiteThemeId(profile.id)]);
   const firstName = (data.profile.fullName ?? "bạn").split(" ").pop() ?? "bạn";
   const score = data.predictedScore?.total ?? data.profile.currentScore;
 
@@ -74,6 +75,7 @@ export default async function DashboardPage() {
           weeklyStudyMinutes={data.weeklyStudyMinutes}
           weeklyGoalMinutes={data.profile.dailyStudyTargetMinutes * 7}
           activityHeatmap={data.activityHeatmap}
+          themeId={siteThemeId}
         />
       </div>
 

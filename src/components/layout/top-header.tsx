@@ -18,6 +18,7 @@ import { MAIN_NAV } from "@/lib/constants/nav";
 import { signOutAction } from "@/app/(auth)/actions";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SoundPlayerPopover } from "@/components/layout/sound-player-popover";
+import { SiteThemeGallery } from "@/components/layout/site-theme-gallery";
 import type { SidebarProfile } from "@/components/layout/app-sidebar";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
 
@@ -69,10 +70,12 @@ function ReminderBell({ reminder }: { reminder: VocabularyReminder }) {
 export function TopHeader({
   profile,
   vocabularyReminder,
+  siteThemeId,
   onOpenSearch,
 }: {
   profile: SidebarProfile;
   vocabularyReminder: VocabularyReminder;
+  siteThemeId: string;
   onOpenSearch: () => void;
 }) {
   // Trivial re-check of the same rule as src/lib/auth.ts's isPro() — that
@@ -149,6 +152,7 @@ export function TopHeader({
         <div data-tour="dashboard-icons" className="flex items-center gap-2">
           <ReminderBell reminder={vocabularyReminder} />
           <SoundPlayerPopover />
+          <SiteThemeGallery currentThemeId={siteThemeId} isPro={isPro} />
           <ThemeToggle />
         </div>
         <DropdownMenu>

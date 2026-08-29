@@ -1,13 +1,15 @@
-import { requireUser } from "@/lib/auth";
+import { requireUser, isPro } from "@/lib/auth";
 import { getVocabularyReminder } from "@/lib/data/vocabulary";
 import { getNewMemberOfferState } from "@/lib/services/new-member-offer";
+import { getSiteThemeId } from "@/lib/data/site-theme";
 import { AppShell } from "@/components/layout/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireUser();
-  const [vocabularyReminder, newMemberOffer] = await Promise.all([
+  const [vocabularyReminder, newMemberOffer, siteThemeId] = await Promise.all([
     getVocabularyReminder(profile.id),
     getNewMemberOfferState(profile),
+    getSiteThemeId(profile.id),
   ]);
 
   return (
@@ -25,6 +27,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
       vocabularyReminder={vocabularyReminder}
       newMemberOfferDeadline={newMemberOffer.deadline}
+      siteThemeId={siteThemeId}
+      isPro={isPro(profile)}
     >
       {children}
     </AppShell>
