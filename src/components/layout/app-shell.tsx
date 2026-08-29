@@ -6,8 +6,8 @@ import { TopHeader } from "@/components/layout/top-header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { SiteThemeBackground } from "@/components/layout/site-theme-background";
+import { IconGuidePopup } from "@/components/layout/icon-guide-popup";
 import { WelcomeOfferModal } from "@/components/billing/welcome-offer-modal";
-import { LiveThemeOfferModal } from "@/components/billing/live-theme-offer-modal";
 import { getSiteTheme } from "@/lib/constants/site-themes";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
 
@@ -16,7 +16,6 @@ export function AppShell({
   vocabularyReminder,
   newMemberOfferDeadline,
   siteThemeId,
-  isPro,
   children,
 }: {
   profile: SidebarProfile;
@@ -26,7 +25,6 @@ export function AppShell({
   newMemberOfferDeadline: string | null;
   /** Current site-wide Live theme id — see site-theme-gallery.tsx. */
   siteThemeId: string;
-  isPro: boolean;
   children: React.ReactNode;
 }) {
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -47,11 +45,7 @@ export function AppShell({
       </div>
       <MobileBottomNav />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
-      {newMemberOfferDeadline ? (
-        <WelcomeOfferModal deadline={newMemberOfferDeadline} />
-      ) : (
-        !isPro && <LiveThemeOfferModal />
-      )}
+      {newMemberOfferDeadline ? <WelcomeOfferModal deadline={newMemberOfferDeadline} /> : <IconGuidePopup />}
     </div>
   );
 }

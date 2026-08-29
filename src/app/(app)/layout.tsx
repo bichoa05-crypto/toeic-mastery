@@ -1,4 +1,4 @@
-import { requireUser, isPro } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getVocabularyReminder } from "@/lib/data/vocabulary";
 import { getNewMemberOfferState } from "@/lib/services/new-member-offer";
 import { getSiteThemeId } from "@/lib/data/site-theme";
@@ -28,7 +28,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       vocabularyReminder={vocabularyReminder}
       newMemberOfferDeadline={newMemberOffer.deadline}
       siteThemeId={siteThemeId}
-      isPro={isPro(profile)}
     >
       {children}
     </AppShell>

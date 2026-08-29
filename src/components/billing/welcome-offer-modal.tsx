@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { NEW_MEMBER_OFFER_PERCENT } from "@/lib/constants/billing";
 
 const VIEW_COUNT_KEY = "welcome_offer_view_count_v2";
-const MAX_VIEWS = 3;
+const MAX_VIEWS = 5;
 
 interface Countdown {
   days: number;
