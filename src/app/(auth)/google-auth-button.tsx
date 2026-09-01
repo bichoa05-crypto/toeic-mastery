@@ -1,9 +1,7 @@
 "use client";
 
-import * as React from "react";
-import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
 
 function GoogleIcon() {
   return (
@@ -26,23 +24,16 @@ function GoogleIcon() {
 }
 
 export function GoogleAuthButton() {
-  const [loading, setLoading] = React.useState(false);
-
-  async function handleClick() {
-    setLoading(true);
-    const supabase = createClient();
-    const redirectTo = `${window.location.origin}/auth/callback`;
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
-    if (error) {
-      toast.error("Đăng nhập bằng Google hiện không khả dụng. Vui lòng dùng email và mật khẩu.");
-      setLoading(false);
-    }
-  }
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  const href = next ? `/api/auth/google?next=${encodeURIComponent(next)}` : "/api/auth/google";
 
   return (
-    <Button type="button" variant="outline" className="w-full" onClick={handleClick} disabled={loading}>
-      <GoogleIcon />
-      Tiếp tục với Google
+    <Button asChild type="button" variant="outline" className="w-full">
+      <a href={href}>
+        <GoogleIcon />
+        Đăng nhập với Google
+      </a>
     </Button>
   );
 }

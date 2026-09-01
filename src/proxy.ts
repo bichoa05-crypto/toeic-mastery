@@ -1,5 +1,5 @@
 import type { NextFetchEvent, NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/proxy-session";
+import { updateSession } from "@/lib/auth/proxy-session";
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   return updateSession(request, event);

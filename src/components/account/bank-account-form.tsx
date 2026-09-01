@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +13,7 @@ import { updateBankAccountAction } from "@/lib/actions/account";
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-export function BankAccountForm({ userId, defaultValues }: { userId: string; defaultValues: BankAccountInput }) {
+export function BankAccountForm({ defaultValues }: { defaultValues: BankAccountInput }) {
   const [qrUrl, setQrUrl] = React.useState(defaultValues.qrImageUrl ?? null);
   const [uploading, setUploading] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -37,16 +36,14 @@ export function BankAccountForm({ userId, defaultValues }: { userId: string; def
 
     setUploading(true);
     try {
-      const supabase = createClient();
-      const ext = file.name.split(".").pop();
-      const path = `${userId}/qr-${Date.now()}.${ext}`;
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/upload/bank-qr", { method: "POST", body });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Tải ảnh QR thất bại");
 
-      const { error: uploadError } = await supabase.storage.from("bank-qr").upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("bank-qr").getPublicUrl(path);
-      setQrUrl(data.publicUrl);
-      setValue("qrImageUrl", data.publicUrl);
+      setQrUrl(data.url);
+      setValue("qrImageUrl", data.url);
       toast.success("Đã tải ảnh QR");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Tải ảnh QR thất bại");

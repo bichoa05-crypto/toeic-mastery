@@ -1,8 +1,8 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { SESSION_COOKIE, SESSION_REFRESH_THRESHOLD_SEC, sessionCookieOptions, signSessionToken, verifySessionToken } from "@/lib/auth/session";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/forgot-password"];
-const AUTH_ROUTES = ["/login", "/register", "/forgot-password"];
+const PUBLIC_ROUTES = ["/", "/login"];
+const AUTH_ROUTES = ["/login"];
 
 /** First-touch attribution cookie: whichever referral link a visitor
  * clicks first is kept for 60 days, even if they later click a different
@@ -20,9 +20,9 @@ function isPublicAsset(pathname: string) {
 }
 
 /** Applied on whichever response object actually gets returned (`next()` or
- * a redirect) — Proxy may swap `response` out from under us while refreshing
- * the Supabase session cookie, so the referral cookie can't just be set once
- * on an intermediate object. */
+ * a redirect) — the session refresh below may swap `response` out from
+ * under us, so the referral cookie can't just be set once on an
+ * intermediate object. */
 function withReferralCookie(response: NextResponse, code: string | null) {
   if (code) {
     response.cookies.set(REFERRAL_COOKIE, code, {
@@ -38,8 +38,8 @@ function withReferralCookie(response: NextResponse, code: string | null) {
 
 /** Fire-and-forget log of the click for the fallback fingerprint-matching
  * path (see getCurrentProfile in src/lib/auth.ts) — reads IP/UA off the
- * original incoming request, not a Vercel-internal fetch, so the recorded
- * address is the visitor's, not the proxy's. */
+ * original incoming request, not a proxy-internal fetch, so the recorded
+ * address is the visitor's, not the server's. */
 function trackReferralClick(request: NextRequest, event: NextFetchEvent, code: string) {
   const secret = process.env.INTERNAL_TRACK_SECRET;
   if (!secret) return;
@@ -57,12 +57,15 @@ function trackReferralClick(request: NextRequest, event: NextFetchEvent, code: s
 }
 
 /**
- * Refreshes the Supabase session cookie on every request and redirects
- * unauthenticated users away from protected routes. Role checks for /admin
- * still happen server-side in the admin layout — this is coarse gating only.
+ * Verifies the session cookie on every request (slide-refreshing it once
+ * it's within SESSION_REFRESH_THRESHOLD_SEC of expiry — no database round
+ * trip either way, since this runs in the Edge runtime where Prisma can't)
+ * and redirects unauthenticated users away from protected routes. Role
+ * checks for /admin still happen server-side in the admin layout — this is
+ * coarse gating only.
  */
 export async function updateSession(request: NextRequest, event: NextFetchEvent) {
-  let response = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
 
   if (isPublicAsset(request.nextUrl.pathname)) {
     return response;
@@ -75,38 +78,21 @@ export async function updateSession(request: NextRequest, event: NextFetchEvent)
     trackReferralClick(request, event, refParam);
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value } of cookiesToSet) {
-            request.cookies.set(name, value);
-          }
-          response = NextResponse.next({ request });
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
-          }
-        },
-      },
-    }
-  );
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  if (session) {
+    const secondsLeft = session.exp - Math.floor(Date.now() / 1000);
+    if (secondsLeft < SESSION_REFRESH_THRESHOLD_SEC) {
+      const token = await signSessionToken({ sub: session.sub, email: session.email });
+      response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
+    }
+  }
 
   const { pathname } = request.nextUrl;
 
   // API routes manage their own authorization (401 JSON, or intentionally
   // public like /api/dictionary) — redirecting a fetch() call to an HTML
-  // login page would break every client-side call. The session cookie
-  // refresh above still runs so `getAuthedProfileOrNull()` sees a fresh
-  // session inside the route handler.
+  // login page would break every client-side call.
   if (pathname.startsWith("/api/")) {
     return withReferralCookie(response, referralCodeToPersist);
   }
@@ -114,14 +100,14 @@ export async function updateSession(request: NextRequest, event: NextFetchEvent)
   const isPublic = PUBLIC_ROUTES.includes(pathname);
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
-  if (!user && !isPublic) {
+  if (!session && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return withReferralCookie(NextResponse.redirect(url), referralCodeToPersist);
   }
 
-  if (user && isAuthRoute) {
+  if (session && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";

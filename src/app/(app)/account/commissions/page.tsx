@@ -51,7 +51,6 @@ export default async function AccountCommissionsPage() {
       <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <h2 className="mb-4 text-sm font-semibold">Thông tin ngân hàng nhận tiền</h2>
         <BankAccountForm
-          userId={profile.id}
           defaultValues={{
             bankName: bankAccount?.bankName ?? "",
             accountNumber: bankAccount?.accountNumber ?? "",

@@ -4,18 +4,16 @@ import * as React from "react";
 import { ImageIcon, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
 
 const MAX_SIZE_MB = 50;
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 /**
- * Direct-to-Supabase-Storage upload for question/test images — same pattern
- * as QuestionAudioUploader, uploading straight from the browser to the
- * `question-media` bucket rather than routing file bytes through a Server
- * Action (which would hit Next's default 1MB body limit). The resulting
- * public URL fills the same imageUrl/thumbnailUrl field the form already
- * has, so pasting a URL directly still works as a fallback.
+ * Upload for question/test images, via /api/upload/question-media (a Route
+ * Handler, not a Server Action — Server Actions have Next's default 1MB
+ * body limit, which would reject a 50MB image). The resulting public URL
+ * fills the same imageUrl/thumbnailUrl field the form already has, so
+ * pasting a URL directly still works as a fallback.
  */
 export function ImageUploader({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const [uploading, setUploading] = React.useState(false);
@@ -37,15 +35,14 @@ export function ImageUploader({ value, onChange }: { value: string; onChange: (u
 
     setUploading(true);
     try {
-      const supabase = createClient();
-      const ext = file.name.split(".").pop();
-      const path = `images/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const body = new FormData();
+      body.append("file", file);
+      body.append("kind", "image");
+      const res = await fetch("/api/upload/question-media", { method: "POST", body });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Tải ảnh thất bại");
 
-      const { error: uploadError } = await supabase.storage.from("question-media").upload(path, file);
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("question-media").getPublicUrl(path);
-      onChange(data.publicUrl);
+      onChange(data.url);
       toast.success("Đã tải ảnh lên");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Tải ảnh thất bại");

@@ -12,14 +12,22 @@ nguồn và giới hạn đã biết (chưa có ảnh Part 1 và audio thật �
 ## Tech stack
 
 Next.js 16 (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui ·
-Prisma 7 (driver adapter `@prisma/adapter-pg`) · Supabase (Postgres, Auth,
-Storage) · React Hook Form + Zod · TanStack Query · Zustand · Recharts ·
+Prisma 7 (driver adapter `@prisma/adapter-pg`) · self-hosted Postgres ·
+hand-rolled Google Sign-In auth (no third-party auth provider) · local-disk
+file storage · React Hook Form + Zod · TanStack Query · Zustand · Recharts ·
 Framer Motion · Web Speech API.
+
+There is no third-party auth/database/storage vendor in the loop — Postgres
+runs wherever you host it, sessions are signed JWT cookies the app issues
+itself (see `src/lib/auth/`), and uploaded files land on local disk (see
+`src/lib/upload.ts`).
 
 ## 1. Requirements
 
 - Node.js 20+ and npm
-- A [Supabase](https://supabase.com) project (free tier is enough to start)
+- A Postgres instance you control (local, Docker, or your VPS)
+- A [Google Cloud](https://console.cloud.google.com/apis/credentials) OAuth
+  Client (sign-in is Google-only — see §3)
 - Git
 
 ## 2. Install
@@ -30,24 +38,20 @@ npm install
 
 This also runs `prisma generate` automatically (`postinstall` script).
 
-## 3. Create a Supabase project
+## 3. Create a Google OAuth Client (required — sign-in is Google-only)
 
-1. Go to [supabase.com](https://supabase.com) → New project.
-2. Once created, open **Project Settings → API** and copy:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon` `public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (keep secret, server-only)
-3. Open **Project Settings → Database** and copy two connection strings:
-   - **Transaction pooler** (port 6543) → `DATABASE_URL` (add `?pgbouncer=true`)
-   - **Session pooler or direct connection** (port 5432) → `DIRECT_URL`
-4. (Optional, for "Tiếp tục với Google") By default the Google provider is
-   **disabled** — clicking the button will fail with a provider error until
-   you set this up: in **Authentication → Providers**, enable Google and
-   paste OAuth Client ID/Secret from
-   [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-   In Google Cloud, add `https://[project-ref].supabase.co/auth/v1/callback`
-   as an authorized redirect URI. Email/password login works without this
-   step — it's a separate, independent auth method.
+1. Go to [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+   Create a project if you don't have one yet.
+2. **OAuth consent screen**: choose **External**, fill in the required app
+   name/support email. While the app is in "Testing" mode, add your own
+   Google account under **Test users** (otherwise Google blocks sign-in for
+   everyone but the project owner).
+3. **Credentials → Create Credentials → OAuth client ID → Web application.**
+4. Under **Authorized redirect URIs**, add:
+   - `http://localhost:3000/auth/callback` (local dev)
+   - `https://your-production-domain/auth/callback` (once you have one)
+5. Copy the **Client ID** and **Client secret** — you'll paste these into
+   `.env` in the next step.
 
 ## 4. Configure environment variables
 
@@ -55,35 +59,41 @@ This also runs `prisma generate` automatically (`postinstall` script).
 cp .env.example .env
 ```
 
-Fill in the values from step 3. See [`.env.example`](.env.example) for a
-description of every variable (dictionary/translation providers included).
+Fill in:
+- `DATABASE_URL`/`DIRECT_URL` — your Postgres connection string (same value
+  for both is fine at this scale; see §5 for a local/dev option).
+- `AUTH_SECRET` — generate with `openssl rand -base64 48`.
+- `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI` — from §3.
+- `UPLOADS_DIR`/`NEXT_PUBLIC_UPLOADS_URL` — see §8.
 
-## 5. Run database migrations
+See [`.env.example`](.env.example) for every variable, including the
+dictionary/translation providers and VNPay (unrelated to auth).
+
+## 5. Get a Postgres database
+
+Any Postgres 14+ works. For local development, the quickest option is Docker:
+
+```bash
+docker run -d --name toeic-postgres -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 -v toeic-postgres-data:/var/lib/postgresql/data postgres:16
+```
+
+Then set `DATABASE_URL`/`DIRECT_URL` in `.env` to
+`postgresql://postgres:postgres@localhost:5432/toeic_mastery` (Postgres
+creates the `toeic_mastery` database the first time Prisma connects and
+migrates, as long as you connect to the default `postgres` database name
+instead if your setup requires the DB to pre-exist — adjust as needed).
+
+For production, this same container (or a native `apt install postgresql`)
+runs on your own server — see the deploy section (§12).
+
+## 6. Run database migrations
 
 ```bash
 npm run db:migrate
 ```
 
-This creates every table in `prisma/schema.prisma` on your Supabase
-database.
-
-## 6. Run the Supabase-only SQL (auth trigger, RLS, storage)
-
-Prisma manages the `public` schema tables, but three things live outside
-Prisma's reach and must be run once via the **Supabase SQL Editor** (in
-order):
-
-1. [`supabase/sql/001_profile_trigger.sql`](supabase/sql/001_profile_trigger.sql) —
-   auto-creates a `profiles` row whenever someone signs up.
-2. [`supabase/sql/002_row_level_security.sql`](supabase/sql/002_row_level_security.sql) —
-   enables Row Level Security on every table (defense-in-depth for
-   Supabase's auto-generated REST API; the app's own server bypasses this
-   via the Postgres role and enforces authorization in code — see
-   `src/lib/auth.ts`).
-3. [`supabase/sql/003_storage.sql`](supabase/sql/003_storage.sql) — creates
-   the `avatars` and `question-media` Storage buckets with their access
-   policies. (Alternatively, create the two buckets manually from
-   **Storage** in the dashboard and skip the `insert` statements.)
+This creates every table in `prisma/schema.prisma`.
 
 ## 7. Seed the database
 
@@ -99,37 +109,39 @@ and `03` are draft placeholders ready for more content.
 Re-running `npm run db:seed` is safe — it upserts vocabulary/grammar and
 rebuilds `Mock Test 01` from scratch each time.
 
-## 8. Email confirmation (important for local testing)
+## 8. File uploads (local disk)
 
-Supabase's **"Confirm email"** setting is on by default: after `/register`,
-the account exists but has no active session until the user clicks the
-confirmation link sent to their inbox — signing in before that fails with
-"Email not confirmed" (the app now shows this clearly instead of silently
-bouncing you back to `/login`).
+Avatars, question images/audio, and bank QR images are written to
+`UPLOADS_DIR` (an absolute path — keep it **outside** this repo's own
+directory so redeploys never wipe uploads) and served back at
+`NEXT_PUBLIC_UPLOADS_URL`. For local development:
 
-For local development, either:
+```bash
+mkdir -p /tmp/toeic-uploads
+```
 
-- Check the inbox and click the confirmation link, **or**
-- Skip email entirely and confirm the account directly:
+...and set in `.env`:
+```
+UPLOADS_DIR="/tmp/toeic-uploads"
+NEXT_PUBLIC_UPLOADS_URL="http://localhost:3000/uploads"
+```
 
-  ```bash
-  npm run db:confirm-user -- you@example.com
-  ```
-
-- Or disable confirmation altogether for a dev/staging project in
-  **Supabase Dashboard → Authentication → Providers → Email → uncheck
-  "Confirm email"** (leave this **on** for production).
+`next dev`/`next start` don't serve `UPLOADS_DIR` automatically — for local
+testing, either point `NEXT_PUBLIC_UPLOADS_URL` at a separate static file
+server you run yourself, or (simplest for local dev) set `UPLOADS_DIR` to a
+path under `public/uploads` so Next's own static file serving picks it up.
+In production, Nginx serves this path directly — see §12.
 
 ## 9. Create your admin account
 
-1. Sign up a real account at `/register` (see §8 if login fails right after).
-2. Promote that account to admin:
+1. Sign in once with Google at `/login` — this creates your account.
+2. Promote it to admin:
 
    ```bash
    npm run db:promote-admin -- you@example.com
    ```
 
-3. Sign back in — you'll see **Quản trị** in the sidebar, linking to
+3. Sign out and back in — you'll see **Quản trị** in the sidebar, linking to
    `/admin`.
 
 ## 10. Run locally
@@ -151,40 +163,88 @@ npm run start
 builds with zero TypeScript errors and zero ESLint errors (`npm run
 typecheck`, `npm run lint`).
 
-## 12. Deploy to Vercel
+## 12. Deploy to your own VPS
 
-1. Push this repo to GitHub/GitLab/Bitbucket.
-2. Import the project in [Vercel](https://vercel.com/new).
-3. Add all variables from `.env.example` in **Project Settings →
-   Environment Variables** (use your real Supabase values — same ones as
-   local `.env`, plus set `NEXT_PUBLIC_SITE_URL` to your production domain).
-4. Deploy. Vercel runs `npm run build` (→ `prisma generate && next build`)
-   automatically; no extra build command needed.
-5. Run `npm run db:migrate` and `npm run db:seed` from your local machine
-   (pointed at the production `DATABASE_URL`/`DIRECT_URL`) before or right
-   after the first deploy, plus the Supabase SQL Editor steps from §6.
+No third-party PaaS/BaaS in this setup — the app, its Postgres database,
+and uploaded files all live on one server you control.
+
+1. **Postgres**: run it as a Docker container (see §5's `docker run`
+   command — same idea, just on the server instead of your laptop; give it
+   a strong password and keep it bound to `127.0.0.1`, not exposed
+   publicly), or install Postgres natively (`apt install postgresql`).
+2. **App**: clone this repo onto the server, `cp .env.example .env` and
+   fill in production values (`GOOGLE_REDIRECT_URI` and the Google OAuth
+   Client's redirect URI must both be your real
+   `https://your-domain/auth/callback`), then:
+   ```bash
+   npm ci
+   npm run build
+   npm run db:migrate
+   npm run db:seed   # first deploy only
+   ```
+3. **Process manager**: keep `npm run start` running persistently — [PM2](https://pm2.keymetrics.io/)
+   is the simplest option:
+   ```bash
+   npm install -g pm2
+   pm2 start npm --name toeic-mastery -- start
+   pm2 save
+   pm2 startup   # prints a command to run once, so PM2 survives a reboot
+   ```
+4. **Nginx**: reverse-proxy to the Next.js port (default 3000) and serve
+   `UPLOADS_DIR` directly as static files at `/uploads/`:
+   ```nginx
+   server {
+     listen 80;
+     server_name your-domain;
+     client_max_body_size 60m; # question-media images/audio can be up to 50MB
+
+     location /uploads/ {
+       alias /var/app-uploads/;
+     }
+
+     location / {
+       proxy_pass http://127.0.0.1:3000;
+       proxy_set_header Host $host;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+     }
+   }
+   ```
+   Then get HTTPS via [Certbot](https://certbot.eff.org/) (`certbot --nginx`).
+5. **Cron jobs**: `vercel.json`'s two cron entries have no Vercel-specific
+   code — replicate them with a plain crontab hitting the same routes:
+   ```bash
+   # crontab -e
+   0 1 * * * curl -fsS https://your-domain/api/cron/confirm-commissions
+   0 12 * * * curl -fsS https://your-domain/api/cron/daily-reminders
+   ```
+   (add whatever auth header those routes expect, if any).
+6. To ship a code change later: `git pull && npm ci && npm run build && pm2 restart toeic-mastery`.
 
 ## Project structure
 
 ```
 src/
   app/
-    (auth)/            login, register, forgot-password + server actions
+    (auth)/            login (Google Sign-In only) + sign-out action
+    auth/callback/       Google OAuth code-exchange Route Handler
     (app)/              authenticated app shell: dashboard, practice, exam,
                          listening, reading, grammar, vocabulary, dictionary,
                          history, analytics, bookmarks, profile, settings
     admin/               admin-only CMS (tests, questions, vocabulary, users)
-    api/                 route handlers (exam sync/submit, dictionary, search)
+    api/                 route handlers (exam sync/submit, dictionary, search,
+                         auth/google, upload/*)
   components/
     ui/                  shadcn/ui primitives
     layout/, exam/, dictionary/, vocabulary/, grammar/, history/,
     analytics/, admin/, shared/, profile/, settings/, skills/
   lib/
     actions/             Server Actions (mutations)
+    auth/                 session (signed JWT cookie) + Google OAuth helpers
     data/                read-only data-access functions (Server Components)
     services/            ScoreCalculator, DictionaryService, TranslationService,
                          spaced repetition (SM-2), rule-based recommendations
-    supabase/             Supabase browser/server clients + proxy session helper
+    upload.ts             local-disk file storage helper
     validations/          Zod schemas
   store/                 Zustand stores (exam runner, client settings)
   hooks/                 client hooks (dictionary lookup, text selection, exam sync)
@@ -193,7 +253,6 @@ prisma/
   schema.prisma          full data model (~25 tables)
   seed.ts, seed-data/     original TOEIC-style seed content
   promote-admin.ts        CLI to grant the ADMIN role
-supabase/sql/              SQL that must run outside Prisma (see §6)
 docs/content-sources.md    content provenance and licensing notes
 ```
 

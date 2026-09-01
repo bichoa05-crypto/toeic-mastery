@@ -4,18 +4,16 @@ import * as React from "react";
 import { Loader2, Music, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { createClient } from "@/lib/supabase/client";
 
 const MAX_SIZE_MB = 20;
 const ACCEPTED_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/aac"];
 
 /**
- * Direct-to-Supabase-Storage upload for question audio (Part 1-4) — same
- * client-side pattern as AvatarUploader, uploading straight from the
- * browser to the `question-media` bucket rather than routing file bytes
- * through a Server Action (which would hit Next's default 1MB body limit).
- * The resulting public URL fills the same `audioUrl` field the form already
- * has, so pasting a URL directly still works as a fallback.
+ * Upload for question audio (Part 1-4), via /api/upload/question-media (a
+ * Route Handler, not a Server Action — Server Actions have Next's default
+ * 1MB body limit). The resulting public URL fills the same `audioUrl`
+ * field the form already has, so pasting a URL directly still works as a
+ * fallback.
  */
 export function QuestionAudioUploader({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const [uploading, setUploading] = React.useState(false);
@@ -37,15 +35,14 @@ export function QuestionAudioUploader({ value, onChange }: { value: string; onCh
 
     setUploading(true);
     try {
-      const supabase = createClient();
-      const ext = file.name.split(".").pop();
-      const path = `audio/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const body = new FormData();
+      body.append("file", file);
+      body.append("kind", "audio");
+      const res = await fetch("/api/upload/question-media", { method: "POST", body });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Tải file thất bại");
 
-      const { error: uploadError } = await supabase.storage.from("question-media").upload(path, file);
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("question-media").getPublicUrl(path);
-      onChange(data.publicUrl);
+      onChange(data.url);
       toast.success("Đã tải file âm thanh lên");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Tải file thất bại");

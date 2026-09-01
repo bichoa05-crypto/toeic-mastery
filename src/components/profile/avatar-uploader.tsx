@@ -3,13 +3,12 @@
 import * as React from "react";
 import { Camera, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { updateAvatarAction } from "@/lib/actions/profile";
 
 const MAX_SIZE_MB = 3;
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-export function AvatarUploader({ userId, initialUrl }: { userId: string; initialUrl: string | null }) {
+export function AvatarUploader({ initialUrl }: { initialUrl: string | null }) {
   const [url, setUrl] = React.useState(initialUrl);
   const [uploading, setUploading] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -30,18 +29,16 @@ export function AvatarUploader({ userId, initialUrl }: { userId: string; initial
 
     setUploading(true);
     try {
-      const supabase = createClient();
-      const ext = file.name.split(".").pop();
-      const path = `${userId}/avatar-${Date.now()}.${ext}`;
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/upload/avatar", { method: "POST", body });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Tải ảnh thất bại");
 
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-      const result = await updateAvatarAction(data.publicUrl);
+      const result = await updateAvatarAction(data.url);
       if (result.error) throw new Error(result.error);
 
-      setUrl(data.publicUrl);
+      setUrl(data.url);
       toast.success("Đã cập nhật ảnh đại diện");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Tải ảnh thất bại");

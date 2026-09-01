@@ -1,5 +1,6 @@
 /**
- * Promotes an existing account (already signed up via /register) to ADMIN.
+ * Promotes an existing account (already signed in with Google at least
+ * once) to ADMIN.
  * Usage: npm run db:promote-admin -- someone@example.com
  */
 import "dotenv/config";
@@ -19,7 +20,7 @@ async function main() {
 
   const profile = await db.profile.findUnique({ where: { email } });
   if (!profile) {
-    console.error(`No profile found for ${email}. Sign up via /register first.`);
+    console.error(`No profile found for ${email}. Sign in with Google first.`);
     process.exit(1);
   }
 

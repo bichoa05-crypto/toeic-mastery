@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { randomUUID, createHash } from "node:crypto";
-import { createClient } from "@/lib/supabase/server";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { Prisma, type Profile } from "@/generated/prisma/client";
 import type { AttributionSource } from "@/generated/prisma/enums";
@@ -158,31 +158,23 @@ async function syncCurrentDevice(profile: Profile): Promise<void> {
 }
 
 /**
- * Cached per-request: Supabase auth + the matching Profile row. `cache()`
- * dedupes this across every server component that calls it in one render.
+ * Cached per-request: the session cookie's identity + the matching Profile
+ * row. `cache()` dedupes this across every server component that calls it
+ * in one render.
  */
 export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
+  if (!session) return null;
 
-  if (!user) return null;
-
-  // The `handle_new_user` Supabase trigger creates the Profile row on signup
-  // (see supabase/sql/002_profile_trigger.sql). This lazily backfills it for
-  // any account created before the trigger existed, without writing on the
-  // common (already-exists) path.
-  const existing = await db.profile.findUnique({ where: { id: user.id } });
+  // The Google OAuth callback (src/app/auth/callback/route.ts) creates the
+  // Profile row on first sign-in. This lazy-create is defense-in-depth for
+  // any session whose row somehow doesn't exist (e.g. it was deleted).
+  const existing = await db.profile.findUnique({ where: { id: session.sub } });
   let profile =
     existing ??
     (await db.profile.create({
-      data: {
-        id: user.id,
-        email: user.email ?? "",
-        fullName: (user.user_metadata?.full_name as string | undefined) ?? null,
-        avatarUrl: (user.user_metadata?.avatar_url as string | undefined) ?? null,
-      },
+      data: { id: session.sub, email: session.email },
     }));
 
   profile = await ensureReferralCode(profile);

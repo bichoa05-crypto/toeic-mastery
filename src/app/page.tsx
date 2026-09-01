@@ -45,7 +45,7 @@ export default async function LandingPage() {
             <Link href="/login">Đăng nhập</Link>
           </Button>
           <Button asChild>
-            <Link href="/register">
+            <Link href="/login">
               Bắt đầu miễn phí <ArrowRight />
             </Link>
           </Button>
@@ -65,7 +65,7 @@ export default async function LandingPage() {
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Button size="lg" asChild>
-            <Link href="/register">
+            <Link href="/login">
               Tạo tài khoản miễn phí <ArrowRight />
             </Link>
           </Button>

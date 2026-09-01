@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Bell, CreditCard, KeyRound, Lightbulb, ScrollText, Smartphone, User, Users } from "lucide-react";
+import { Bell, CreditCard, Lightbulb, ScrollText, Smartphone, User, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,6 @@ const ACCOUNT_NAV_GROUPS: { title: string; items: AccountNavItem[] }[] = [
     title: "TÀI KHOẢN",
     items: [
       { label: "Hồ sơ", href: "/account/profile", icon: User },
-      { label: "Đổi mật khẩu", href: "/account/password", icon: KeyRound },
       { label: "Thiết bị", href: "/account/devices", icon: Smartphone },
       { label: "Thông báo", href: "/account/notifications", icon: Bell },
     ],
