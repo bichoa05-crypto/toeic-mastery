@@ -8,7 +8,13 @@ const STATE_COOKIE = "oauth_state";
 const NEXT_COOKIE = "oauth_next";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  // Not request.url's origin: behind Nginx/a WAF, Next.js's Route Handler
+  // URL reflects the app's own bind address (http://localhost:3000), not
+  // the public host — redirecting there would send the browser nowhere
+  // useful. NEXT_PUBLIC_SITE_URL is the one source of truth for "what
+  // domain are we actually serving on."
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
 
