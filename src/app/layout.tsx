@@ -5,7 +5,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 const GA_MEASUREMENT_ID = "G-GDBZE58K1G";
-const COOKIEHUB_SRC = "https://cdn.cookiehub.eu/c2/51a8864f.js";
+const SECURE_PRIVACY_SRC = "https://app.secureprivacy.ai/script/6a9942ee4e74644db5656e70.js";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -29,20 +29,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="vi" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
-      <body className="min-h-full bg-background font-sans text-foreground">
+      <body className="min-h-full bg-background font-sans text-foreground" suppressHydrationWarning>
         {/* beforeInteractive scripts are always injected as high as possible in
             <head>, ahead of everything else, regardless of where they sit in
             this tree — that's what a cookie consent manager needs (load before
-            any other tracking script gets a chance to run). */}
-        <Script src={COOKIEHUB_SRC} strategy="beforeInteractive" />
-        <Script id="cookiehub-init" strategy="beforeInteractive">
-          {`
-            document.addEventListener("DOMContentLoaded", function (event) {
-              var cpm = {};
-              window.cookiehub.load(cpm);
-            });
-          `}
-        </Script>
+            any other tracking script gets a chance to run). Secure Privacy
+            replaces CookieHub (removed) — running two consent managers at
+            once would fight over showing/dismissing their own banners, the
+            same class of stacking bug already found and fixed for the
+            onboarding tour. */}
+        <Script src={SECURE_PRIVACY_SRC} strategy="beforeInteractive" />
         <Providers>{children}</Providers>
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">
