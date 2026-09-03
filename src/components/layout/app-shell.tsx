@@ -6,7 +6,6 @@ import { TopHeader } from "@/components/layout/top-header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { SiteThemeBackground } from "@/components/layout/site-theme-background";
-import { IconGuidePopup } from "@/components/layout/icon-guide-popup";
 import { WelcomeOfferModal } from "@/components/billing/welcome-offer-modal";
 import { getSiteTheme } from "@/lib/constants/site-themes";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
@@ -45,7 +44,7 @@ export function AppShell({
       </div>
       <MobileBottomNav />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
-      {newMemberOfferDeadline ? <WelcomeOfferModal deadline={newMemberOfferDeadline} /> : <IconGuidePopup />}
+      {newMemberOfferDeadline && <WelcomeOfferModal deadline={newMemberOfferDeadline} />}
     </div>
   );
 }
