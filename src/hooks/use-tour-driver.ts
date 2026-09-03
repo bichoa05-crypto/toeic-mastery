@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createRoot } from "react-dom/client";
 import { driver, type Driver, type DriveStep, type Side, type Alignment } from "driver.js";
 import { useTourStep } from "@/hooks/use-tour-step";
 import { TOUR_STEP_COUNT, type TourId } from "@/lib/constants/tour";
@@ -14,6 +15,13 @@ export interface TourStepInput {
   element?: string;
   title: string;
   description: string;
+  /** Optional rich content shown instead of `description`'s plain text —
+   * mounted into driver.js's popover.description DOM node via a React root
+   * (driver.js's own `description` field is HTML-string-only, and this
+   * step's content needs real icon components + theme thumbnails, not a
+   * hand-built HTML string). `description` is still required as the
+   * accessible-name/no-JS fallback text. */
+  descriptionNode?: React.ReactNode;
   /** Exact button label for this step — every tour's copy is user-specified
    * per step (e.g. "Tiếp tục", "Đã hiểu, chọn đề ngay", "Hoàn tất"), never a
    * single generic default. */
@@ -55,6 +63,12 @@ export function buildTourStep(input: TourStepInput): DriveStep {
       prevBtnText: SKIP_BTN_TEXT,
       onNextClick: input.onNext,
       onPrevClick: input.onSkip,
+      // driver.js rebuilds the popover DOM fresh on every step, so this root
+      // is never explicitly unmounted — the node it's attached to is
+      // discarded along with it. Harmless for a one-shot onboarding step.
+      onPopoverRender: input.descriptionNode
+        ? (popover) => createRoot(popover.description).render(input.descriptionNode)
+        : undefined,
     },
   };
 }
@@ -101,6 +115,8 @@ export interface SequentialStepConfig {
   element?: string;
   title: string;
   description: string;
+  /** See TourStepInput.descriptionNode. */
+  descriptionNode?: React.ReactNode;
   nextBtnText: string;
   side?: Side;
   align?: Alignment;
@@ -155,6 +171,7 @@ export function useSequentialTour(
         element: c.element,
         title: c.title,
         description: c.description,
+        descriptionNode: c.descriptionNode,
         nextBtnText: c.nextBtnText,
         side: c.side,
         align: c.align,

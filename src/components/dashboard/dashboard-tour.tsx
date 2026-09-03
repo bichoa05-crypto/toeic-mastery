@@ -2,6 +2,7 @@
 
 import { useSequentialTour } from "@/hooks/use-tour-driver";
 import { TOUR_IDS } from "@/lib/constants/tour";
+import { DashboardTourIconCluster } from "@/components/dashboard/dashboard-tour-icon-cluster";
 
 /**
  * Dashboard onboarding tour — 1 welcome modal + 5 spotlight steps, all on
@@ -46,9 +47,10 @@ export function DashboardTour() {
       },
       {
         element: '[data-tour="dashboard-icons"]',
-        title: "Không gian học không xao nhãng",
+        title: "Không gian học theo phong cách riêng ✨",
         description:
           "Bật nhạc Lo-fi/Chill để tăng độ tập trung, đổi Live theme cho cả trang web theo phong cách bạn thích, tùy chỉnh giao diện Dark Mode bảo vệ mắt và nhận thông báo nhắc lịch học để không đứt chuỗi Streak.",
+        descriptionNode: <DashboardTourIconCluster />,
         nextBtnText: "Tiếp tục",
         side: "bottom",
         align: "end",

@@ -287,6 +287,27 @@
   animation: button-glow-primary 2s ease-in-out infinite;
 }
 
+/* Pulsing glow around a popup/dialog's own border — every popup on the
+   site (shared Dialog primitive + driver.js tour popovers), distinct from
+   button-glow-primary which lights up a button's fill, not a card's edge. */
+@keyframes popup-frame-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 45%, transparent),
+      0 0 14px 0 color-mix(in oklab, var(--primary) 30%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--primary) 75%, transparent),
+      0 0 26px 3px color-mix(in oklab, var(--primary) 55%, transparent);
+  }
+}
+
+.popup-glow-frame {
+  animation: popup-frame-glow 2.4s ease-in-out infinite;
+}
+
 /* Slow clockwise drift for a conic "spotlight" ring behind the offer badge —
    distinct from hero-blob (which drifts position); this rotates in place. */
 @keyframes spin-slow {
@@ -377,6 +398,7 @@
   .glow-pulse,
   .glow-pulse-blue,
   .glow-pulse-primary,
+  .popup-glow-frame,
   .spin-slow,
   .mascot-bubble-auto,
   .mascot-jump,
@@ -397,6 +419,13 @@
   padding: 18px;
   max-width: 340px;
   font-family: var(--font-sans, inherit);
+  animation: popup-frame-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toeic-tour-popover.driver-popover {
+    animation: none;
+  }
 }
 
 .toeic-tour-popover .driver-popover-title {

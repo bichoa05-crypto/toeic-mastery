@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Gift, Sparkles, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,25 @@ import { NEW_MEMBER_OFFER_PERCENT } from "@/lib/constants/billing";
 
 const VIEW_COUNT_KEY = "welcome_offer_view_count_v2";
 const MAX_VIEWS = 5;
+
+/** DashboardTour's own "done" flag (see use-tour-step.ts) — read directly
+ * rather than through that hook, since this modal isn't part of the tour
+ * and only needs a one-off check, not step tracking. */
+const DASHBOARD_TOUR_DONE_KEY = "tour_dashboard_done";
+/** How long to wait for the dashboard tour to finish before showing the
+ * offer anyway — a fresh signup who abandons the tour mid-way (navigates
+ * off before clicking "Bỏ qua" or finishing) would otherwise never see the
+ * offer at all, since tour_dashboard_done would never flip to "true". */
+const TOUR_WAIT_TIMEOUT_MS = 90_000;
+const TOUR_POLL_INTERVAL_MS = 800;
+
+function isDashboardTourDone(): boolean {
+  try {
+    return localStorage.getItem(DASHBOARD_TOUR_DONE_KEY) === "true";
+  } catch {
+    return true; // fail open — localStorage unavailable, don't block on it
+  }
+}
 
 interface Countdown {
   days: number;
@@ -44,6 +64,7 @@ function CountdownBox({ value, label }: { value: number; label: string }) {
  * client-side, via a view counter rather than the old "dismissed forever"
  * flag. */
 export function WelcomeOfferModal({ deadline }: { deadline: string }) {
+  const pathname = usePathname();
   const deadlineMs = React.useMemo(() => new Date(deadline).getTime(), [deadline]);
   const [open, setOpen] = React.useState(false);
   const [viewNumber, setViewNumber] = React.useState<number | null>(null);
@@ -58,13 +79,35 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
       // localStorage unavailable (private mode, blocked storage) — fail open, just show it once.
       count = 1;
     }
-    // One-time sync with the browser's localStorage, not app state — same
-    // pattern as theme-toggle.tsx's mounted flag.
-    if (count <= MAX_VIEWS) {
+    if (count > MAX_VIEWS) return;
+
+    // On /dashboard, DashboardTour's own welcome dialog can be open at the
+    // exact same moment this effect runs — both are separate portal-rendered
+    // dialogs with no shared parent to sequence them, so without this check
+    // they stack (confirmed via screenshot: the tour's spotlight ends up
+    // hidden behind this modal). Wait for the tour to finish/skip before
+    // opening here; give up and show anyway after TOUR_WAIT_TIMEOUT_MS so an
+    // abandoned tour (closed tab, navigated away mid-tour) can't silently
+    // swallow the offer for the rest of its eligibility window.
+    if (pathname !== "/dashboard" || isDashboardTourDone()) {
+      // One-time sync with the browser's localStorage, not app state — same
+      // pattern as theme-toggle.tsx's mounted flag.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setViewNumber(count);
       setOpen(true);
+      return;
     }
+
+    const startedAt = Date.now();
+    const id = setInterval(() => {
+      if (isDashboardTourDone() || Date.now() - startedAt > TOUR_WAIT_TIMEOUT_MS) {
+        clearInterval(id);
+        setViewNumber(count);
+        setOpen(true);
+      }
+    }, TOUR_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   React.useEffect(() => {
