@@ -94,7 +94,13 @@ export function useTourDriver() {
   const runTour = React.useCallback((steps: DriveStep[], startIndex = 0) => {
     driverRef.current?.destroy();
     const instance = driver({
-      allowClose: true,
+      // false, not the default true: with it on, driver.js treats ANY click
+      // outside its own popover/stage as "close the tour" — including a
+      // click on an unrelated overlay like the CookieHub consent banner,
+      // which sits above everything and made the tour vanish the moment
+      // someone answered the cookie prompt. The only way to leave a tour
+      // now is its own "Bỏ qua" button.
+      allowClose: false,
       overlayOpacity: 0.6,
       stagePadding: 6,
       stageRadius: 12,
