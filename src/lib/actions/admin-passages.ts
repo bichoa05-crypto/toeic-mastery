@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { questionGroupFormSchema, type QuestionGroupFormInput } from "@/lib/validations/admin";
 import { getOrCreatePracticePool, syncIfPracticePool } from "@/lib/services/practice-pool";
+import { reserveQuestionOrderIndex } from "@/lib/services/question-order";
 
 export interface GroupActionResult {
   error?: string;
@@ -45,16 +46,17 @@ export async function createQuestionGroupAction(input: QuestionGroupFormInput): 
     testSectionId = pool.testSectionId;
   }
 
-  // Appends after whatever's already in the test so a freshly-authored
-  // group never jumps ahead of question 1 — createQuestionAction doesn't
-  // bother with this for a single question, but a whole visible group
-  // landing at position 0 would be a much more noticeable defect.
-  const baseOrder = testId
-    ? ((await db.question.aggregate({ where: { testId }, _max: { orderIndex: true } }))._max.orderIndex ?? 0) + 1
-    : 0;
-
   await db.$transaction(
     async (tx) => {
+      // Reserves a block of `questions.length` consecutive positions inside
+      // this part's own existing range (shifting later questions aside)
+      // rather than naively appending after the test's overall max
+      // orderIndex — the same interleaving bug fixed for single-question
+      // creation in createQuestionAction applies here too, and arguably
+      // worse: a whole group landing after a later part's block is a much
+      // more noticeable defect than one stray question.
+      const baseOrder = await reserveQuestionOrderIndex(tx, testId, data.part, data.questions.length);
+
       const passage = await tx.passage.create({
         data: {
           testId,
