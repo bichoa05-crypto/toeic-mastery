@@ -109,7 +109,7 @@ export function ExamQuestionPanel({
 
       {question.imageUrl && !passage?.imageUrl && (
         <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-muted">
-          <Image src={question.imageUrl} alt="" fill className="object-contain" sizes="(max-width: 768px) 100vw, 480px" />
+          <Image src={question.imageUrl} alt="" fill priority className="object-contain" sizes="(max-width: 768px) 100vw, 480px" />
         </div>
       )}
 

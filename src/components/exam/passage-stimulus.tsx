@@ -44,7 +44,7 @@ export function PassageStimulus({
           <TtsAudioPlayer text={passage.transcript} allowReplay={mode === "PRACTICE" || allowReplay} className="mb-3" tourAnchor={showAudioTour} />
         )
       )}
-      <PassageViewer title={passage.title} texts={passage.texts} imageUrl={passage.imageUrl} />
+      <PassageViewer title={passage.title} texts={passage.texts} imageUrl={passage.imageUrl} priority />
       {showAudioTour && <ListeningAudioTour />}
     </div>
   );
