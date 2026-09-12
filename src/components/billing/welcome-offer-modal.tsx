@@ -99,6 +99,18 @@ export function WelcomeOfferModal({ deadline }: { deadline: string }) {
       return;
     }
 
+    // Never interrupt an active, timed exam attempt with an upsell dialog —
+    // confirmed via a live attempt that landing straight on /exam/[id] (e.g.
+    // resuming a bookmarked/in-progress attempt) popped this open over the
+    // question panel mid-timer. This is a mount-time snapshot of pathname,
+    // not a live check, matching this effect's existing "decide once" shape
+    // — good enough since reaching /exam/ almost always means AppShell was
+    // already mounted from an earlier page first.
+    if (pathname.startsWith("/exam/")) {
+      markWelcomeOfferSessionDone();
+      return;
+    }
+
     // On /dashboard, DashboardTour's own welcome dialog can be open at the
     // exact same moment this effect runs — both are separate portal-rendered
     // dialogs with no shared parent to sequence them, so without this check
