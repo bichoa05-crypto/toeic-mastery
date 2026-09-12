@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AudioPlayer } from "@/components/exam/audio-player";
 import { TtsAudioPlayer } from "@/components/exam/tts-audio-player";
-import { PassageViewer } from "@/components/exam/passage-viewer";
+import { PassageStimulus } from "@/components/exam/passage-stimulus";
 import { AnswerOptionList } from "@/components/exam/answer-option";
 import { PART_META } from "@/lib/constants/toeic";
 import { FREE_ANSWER_REVEALS_PER_DAY } from "@/lib/constants/limits";
@@ -25,9 +25,9 @@ interface RevealData {
   options: { label: string; distractorExplanation: string | null }[];
 }
 
-const AUDIO_ONLY_PARTS = new Set(["PART1", "PART2"]);
-const LISTENING_PARTS_WITH_PASSAGE = new Set(["PART3", "PART4"]);
-const READING_PASSAGE_PARTS = new Set(["PART6", "PART7"]);
+export const AUDIO_ONLY_PARTS = new Set(["PART1", "PART2"]);
+export const LISTENING_PARTS_WITH_PASSAGE = new Set(["PART3", "PART4"]);
+export const READING_PASSAGE_PARTS = new Set(["PART6", "PART7"]);
 
 export function ExamQuestionPanel({
   attemptId,
@@ -40,6 +40,7 @@ export function ExamQuestionPanel({
   onToggleFlag,
   mode,
   allowReplay,
+  hideSharedPassage = false,
 }: {
   attemptId: string;
   question: ExamQuestion;
@@ -51,6 +52,11 @@ export function ExamQuestionPanel({
   onToggleFlag: () => void;
   mode: "PRACTICE" | "EXAM";
   allowReplay: boolean;
+  /** True when the caller (exam-runner.tsx's grouped layout) already
+   * rendered this question's shared passage/audio once, outside this panel
+   * — skips both the passage block and its `ListeningAudioTour` here so a
+   * group of N simultaneously-rendered panels doesn't duplicate either. */
+  hideSharedPassage?: boolean;
 }) {
   const [reveal, setReveal] = React.useState<RevealData | null>(null);
   const [revealLoading, setRevealLoading] = React.useState(false);
@@ -97,22 +103,8 @@ export function ExamQuestionPanel({
         </Button>
       </div>
 
-      {hasSharedPassage && passage && (
-        <div key={question.passageId}>
-          {passage.audioUrl ? (
-            <AudioPlayer src={passage.audioUrl} allowReplay={mode === "PRACTICE" || allowReplay} className="mb-3" tourAnchor={isListeningQuestion} />
-          ) : (
-            passage.transcript && (
-              <TtsAudioPlayer
-                text={passage.transcript}
-                allowReplay={mode === "PRACTICE" || allowReplay}
-                className="mb-3"
-                tourAnchor={isListeningQuestion}
-              />
-            )
-          )}
-          <PassageViewer title={passage.title} texts={passage.texts} imageUrl={passage.imageUrl} />
-        </div>
+      {hasSharedPassage && passage && !hideSharedPassage && (
+        <PassageStimulus passage={passage} mode={mode} allowReplay={allowReplay} showAudioTour={isListeningQuestion} />
       )}
 
       {question.imageUrl && !passage?.imageUrl && (
@@ -121,7 +113,7 @@ export function ExamQuestionPanel({
         </div>
       )}
 
-      {!passage?.audioUrl && !passage?.transcript && (
+      {!hideSharedPassage && !passage?.audioUrl && !passage?.transcript && (
         question.audioUrl ? (
           <AudioPlayer src={question.audioUrl} allowReplay={mode === "PRACTICE" || allowReplay} tourAnchor={isListeningQuestion} />
         ) : (
@@ -183,7 +175,7 @@ export function ExamQuestionPanel({
         </div>
       )}
 
-      {isListeningQuestion && <ListeningAudioTour />}
+      {isListeningQuestion && !(hasSharedPassage && hideSharedPassage) && <ListeningAudioTour />}
     </div>
   );
 }
