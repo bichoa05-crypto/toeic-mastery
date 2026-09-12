@@ -7,6 +7,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { SiteThemeBackground } from "@/components/layout/site-theme-background";
 import { WelcomeOfferModal } from "@/components/billing/welcome-offer-modal";
+import { UpgradeNudgeModal } from "@/components/billing/upgrade-nudge-modal";
 import { getSiteTheme } from "@/lib/constants/site-themes";
 import type { VocabularyReminder } from "@/lib/data/vocabulary";
 
@@ -45,6 +46,7 @@ export function AppShell({
       <MobileBottomNav />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
       {newMemberOfferDeadline && <WelcomeOfferModal deadline={newMemberOfferDeadline} />}
+      {profile.plan === "FREE" && <UpgradeNudgeModal hasWelcomeOffer={!!newMemberOfferDeadline} />}
     </div>
   );
 }
