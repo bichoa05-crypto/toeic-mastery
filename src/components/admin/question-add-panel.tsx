@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { QuestionForm } from "@/components/admin/question-form";
 import { AzotaQuickPasteImporter } from "@/components/admin/azota-quick-paste-importer";
@@ -17,12 +18,15 @@ export function QuestionAddPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant={mode === "single" ? "default" : "outline"} size="sm" onClick={() => setMode("single")}>
           Thêm 1 câu chi tiết
         </Button>
         <Button type="button" variant={mode === "paste" ? "default" : "outline"} size="sm" onClick={() => setMode("paste")}>
           Dán nhanh nhiều câu (Part 5-7)
+        </Button>
+        <Button asChild variant="ghost" size="sm" className="text-primary">
+          <Link href="/admin/questions/groups/new">+ Tạo nhóm câu hỏi (Part 3/4/6/7) →</Link>
         </Button>
       </div>
       {mode === "single" ? (
